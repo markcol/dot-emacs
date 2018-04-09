@@ -55,7 +55,8 @@
   (defconst user-data-directory (expand-file-name "data" user-emacs-directory))
   (load (expand-file-name "settings" user-emacs-directory))
   (setq inhibit-splash-screen t)
-  )
+  (setq make-backup-files nil
+	auto-save-default nil))
 
 ;;;
 ;;; Functions
@@ -296,6 +297,13 @@
   (setq sml/theme 'dark)
   :config
   (sml/setup))
+
+(setq default-frame-alist '((height . 58)
+			    (width  . 136)
+			    (font   . "Fantasque Sans Mono-10")))
+
+;; (set-frame-font "Fantasque Sans Mono-10" nil t)
+
 
 ;;;
 ;;; Packages
@@ -1133,7 +1141,6 @@ _h_: paragraph
 
 (use-package highlight-sexp
   :defer t
-  ;; :load-path "lisp"
   :hook (emacs-lisp-mode . highlight-sexp-mode)
   :hook (lisp-mode       . highlight-sexp-mode))
 
@@ -1659,7 +1666,8 @@ _h_: paragraph
   :config
   (require 'eldoc)
   (eldoc-add-command 'paredit-backward-delete
-                     'paredit-close-round))
+
+		     'paredit-close-round))
 
 (use-package paredit-ext
   :straight f
@@ -1904,6 +1912,12 @@ _h_: paragraph
 
 (use-package string-edit
   :bind ("C-c C-'" . string-edit-at-point))
+
+(use-package super-save
+  :config
+  (super-save-mode 1)
+  (setq super-save-auto-save-when-idle t)
+  (setq auto-save-default nil))
 
 (use-package swiper
   :diminish ivy-mode
