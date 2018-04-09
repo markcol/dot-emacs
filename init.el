@@ -240,7 +240,7 @@
           ("C-c y" . my/yasnippet-map)	; yasnippet
           ("C-c H" . my/ctrl-c-H-map)
           ("C-c N" . my/ctrl-c-N-map)
-          ("C-c (" . my/ctrl-c-open-paren-map)
+          ("C-c (" . my/paredit-map) ; paredit
           ("C-c -" . my/ctrl-c-minus-map)
           ("C-c =" . my/ctrl-c-equals-map)
           ("C-c ." . my/ctrl-c-r-map))))
@@ -1648,30 +1648,29 @@ _h_: paragraph
               ("[")
               ("M-k"   . paredit-raise-sexp)
               ("M-I"   . paredit-splice-sexp)
-              ("C-M-l" . paredit-recentre-on-sexp)
-              ("C-c ( n"   . paredit-add-to-next-list)
-              ("C-c ( p"   . paredit-add-to-previous-list)
-              ("C-c ( j"   . paredit-join-with-next-list)
-              ("C-c ( J"   . paredit-join-with-previous-list))
-  :bind (:map lisp-mode-map       ("<return>" . paredit-newline))
-  :bind (:map emacs-lisp-mode-map ("<return>" . paredit-newline))
+              ("C-M-l" . paredit-recentre-on-sexp))
+  :bind (:map my/paredit-map
+	      ("n"     . paredit-add-to-next-list)
+	      ("p"     . paredit-add-to-previous-list)
+	      ("j"     . paredit-join-with-next-list)
+	      ("J"     . paredit-join-with-previous-list))
+  :bind (:map lisp-mode-map
+	      ("<return>" . paredit-newline))
+  :bind (:map emacs-lisp-mode-map
+	      ("<return>" . paredit-newline))
   :hook (paredit-mode
-         . (lambda ()
-             (unbind-key "M-r" paredit-mode-map)
-             (unbind-key "M-s" paredit-mode-map)))
+	 . (lambda ()
+	     (unbind-key "M-r" paredit-mode-map)
+	     (unbind-key "M-s" paredit-mode-map)))
   :config
   (require 'eldoc)
   (eldoc-add-command 'paredit-backward-delete
-
 		     'paredit-close-round))
 
 (use-package paredit-ext
   :straight f
+  :after paredit
   :load-path "lisp")
-
-(use-package paredit-ext
-  :disabled
-  :after paredit)
 
 (use-package pdf-tools
   :disabled
@@ -1752,6 +1751,7 @@ _h_: paragraph
 
 (use-package racer
   :disabled
+  :defines (racer-rust-src-path)
   :init
   (setq racer-cmd (concat (getenv "HOME") ".cargo/bin/racer"))
   (setq racer-rust-src-path "/Users/mhcolbur.ORADEV/src/rust/src")
@@ -1831,7 +1831,7 @@ _h_: paragraph
   (when (executable-find "rustup")
     (setq rust-default-toolchain
           (car (s-split " " (-first
-                             (lambda (line) (s-match "default" line)) 
+                             (lambda (line) (s-match "default" line))
                              (s-lines (shell-command-to-string "rustup toolchain list"))))))
     ;; tell racer to use the rustup-managed rust-src
     ;; rustup component add rust-src
@@ -1932,6 +1932,7 @@ _h_: paragraph
   :unless noninteractive
   :after company
   :defer t
+  :defines (systemd-use-company-p)
   :init
   (setq systemd-use-company-p t))
 
@@ -1962,7 +1963,7 @@ _h_: paragraph
           0
         (forward-char 1)
         (let* ((word (buffer-substring-no-properties
-                      (point) (progn (forward-word 1) (point))))
+                      (point) (progn (forward-word) (point))))
                (entry (assoc word texinfo-section-list)))
           (if entry
               (nth 1 entry)
