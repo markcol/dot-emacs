@@ -363,9 +363,7 @@
                                            (match-end 2))))
               (add-to-list 'latex-help-cmd-alist (cons key value))))))
     latex-help-cmd-alist)
-
-  (add-hook 'TeX-after-compilation-finished-functions
-            #'TeX-revert-document-buffer))
+  :hook (Tex-after-compilation-finished-functions . TeX-revert-document-buffer))
 
 (use-package auto-yasnippet
   :after yasnippet
@@ -1203,11 +1201,10 @@ _h_: paragraph
 (use-package info
   :bind ("C-h C-i" . info-lookup-symbol)
   :config
-  (add-hook 'Info-mode-hook
-            #'(lambda ()
-                (setq buffer-face-mode-face '(:family "Bookerly"))
-                (buffer-face-mode)
-                (text-scale-adjust 1))))
+  :hook (Info-mode . (lambda ()
+		       (setq buffer-face-mode-face '(:family "Bookerly"))
+		       (buffer-face-mode)
+		       (text-scale-adjust 1))))
 
 (use-package info-look
   :defer t
@@ -1468,18 +1465,17 @@ _h_: paragraph
   (use-package magit-files
     :config
     (global-magit-file-mode))
-
-  (add-hook 'magit-status-mode-hook #'(lambda () (my/magit-monitor t)))
-
-  (eval-after-load 'magit-remote
-    '(progn
-       (magit-define-popup-action 'magit-fetch-popup
-         ?f 'magit-get-remote #'magit-fetch-from-upstream ?u t)
-       (magit-define-popup-action 'magit-pull-popup
-         ?F 'magit-get-upstream-branch #'magit-pull-from-upstream ?u t)
-       (magit-define-popup-action 'magit-push-popup
-         ?P 'magit--push-current-to-upstream-desc
-         #'magit-push-current-to-upstream ?u t))))
+  
+  (with-eval-after-load 'magit-remote
+    (magit-define-popup-action 'magit-fetch-popup
+      ?f 'magit-get-remote #'magit-fetch-from-upstream ?u t)
+    (magit-define-popup-action 'magit-pull-popup
+      ?F 'magit-get-upstream-branch #'magit-pull-from-upstream ?u t)
+    (magit-define-popup-action 'magit-push-popup
+      ?P 'magit--push-current-to-upstream-desc
+      #'magit-push-current-to-upstream ?u t))
+  
+  :hook (magit-status-mode . (lambda () (my/magit-monitor t))))
 
 (use-package magit-popup
   :defer t)
@@ -1549,15 +1545,15 @@ _h_: paragraph
 
 (use-package minibuffer
   :straight f
-  :config
+  :preface
   (defun my/minibuffer-setup-hook ()
     (setq gc-cons-threshold most-positive-fixnum))
 
   (defun my/minibuffer-exit-hook ()
     (setq gc-cons-threshold 800000))
 
-  (add-hook 'minibuffer-setup-hook #'my/minibuffer-setup-hook)
-  (add-hook 'minibuffer-exit-hook #'my/minibuffer-exit-hook))
+  :hook (minibuffer-setup . my/minibuffer-setup-hook)
+  :hook (minibuffer-exit  . my/minibuffer-exit-hook))
 
 (use-package multiple-cursors
   :after phi-search selected
@@ -1696,7 +1692,7 @@ _h_: paragraph
   :after (phi-search multiple-cursors)
   :config
   (phi-search-mc/setup-keys)
-  (add-hook 'isearch-mode-mode #'phi-search-from-isearch-mc/setup-keys))
+  :hook (isearch-mode-mode . phi-search-from-isearch-mc/setup-keys))
 
 (use-package pkgbuild-mode
   :mode "/PKGBULD$")
@@ -1755,13 +1751,12 @@ _h_: paragraph
   :hook (python-mode . my/python-mode-hook))
 
 (use-package racer
-  :disabled t
+  :disabled
   :init
   (setq racer-cmd (concat (getenv "HOME") ".cargo/bin/racer"))
   (setq racer-rust-src-path "/Users/mhcolbur.ORADEV/src/rust/src")
-  (add-hook 'rust-mode-hook #'racer-mode)
-  (add-hook 'racer-mode-hook #'eldoc-mode)
-  (add-hook 'racer-mode-hook #'company-mode))
+  :hook (rust-mode . racer-mode)
+  :hook (racer-mode . (company-mode eldoc-mode)))
 
 (use-package rainbow-delimiters
   :hook (prog-mode . rainbow-delimiters-mode))
@@ -1881,11 +1876,10 @@ _h_: paragraph
 (use-package server
   :preface
   (defun server-enable ()
-    "Start an Emacs server process if there is not one already running."
+    "Start an Emacs server process if none are already running."
     (unless (server-running-p)
       (server-start)))
-  :config
-  (add-hook 'after-init-hook #'server-enable t))
+  :hook (after-init . server-enable))
 
 (use-package slime
   :commands slime
@@ -1916,8 +1910,7 @@ _h_: paragraph
 (use-package super-save
   :config
   (super-save-mode 1)
-  (setq super-save-auto-save-when-idle t)
-  (setq auto-save-default nil))
+  (setq super-save-auto-save-when-idle t))
 
 (use-package swiper
   :diminish ivy-mode
@@ -2134,12 +2127,10 @@ _h_: paragraph
                 #'(lambda () (ignore (whitespace-cleanup))) nil t)
       (whitespace-cleanup)))
 
-  :init
-  (add-hook 'find-file-hooks 'maybe-turn-on-whitespace t)
-
   :config
   (remove-hook 'find-file-hooks 'whitespace-buffer)
-  (remove-hook 'kill-buffer-hook 'whitespace-buffer))
+  (remove-hook 'kill-buffer-hook 'whitespace-buffer)
+  :hook (find-file-hooks . maybe-turn-on-whitespace))
 
 (use-package whitespace-cleanup-mode
   :defer 5
