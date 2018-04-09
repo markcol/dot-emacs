@@ -1459,6 +1459,7 @@ _h_: paragraph
   :hook (magit-mode . hl-line-mode)
   :config
   (use-package magit-commit
+    :straight f
     :config
     (use-package git-commit))
 
