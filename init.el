@@ -1464,6 +1464,7 @@ _h_: paragraph
     (use-package git-commit))
 
   (use-package magit-files
+    :straight f
     :config
     (global-magit-file-mode))
   
