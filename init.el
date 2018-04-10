@@ -52,7 +52,18 @@
 ;;; Settings
 
 (eval-and-compile
-  (defconst user-data-directory (expand-file-name "data" user-emacs-directory))
+  (defconst user-data-directory (expand-file-name "data" user-emacs-directory)
+    "Directory for data files.")
+  
+  (defconst user-document-directory "c:/Users/mhcolbur.ORADEV/Documents"
+    "Directory for user documents.")
+
+  (defconst user-org-directory (expand-file-name "org" user-document-directory)
+    "Directory for user org-mode files.")
+
+  (defconst user-bib-directory (expand-file-name "bib" user-document-directory)
+    "Directory for user bibliography data.")
+
   (load (expand-file-name "settings" user-emacs-directory))
   (setq inhibit-splash-screen t)
   (setq make-backup-files nil
@@ -364,6 +375,37 @@
               (add-to-list 'latex-help-cmd-alist (cons key value))))))
     latex-help-cmd-alist)
   :hook (Tex-after-compilation-finished-functions . TeX-revert-document-buffer))
+
+(use-package auth-source-pass
+  :defer t
+  :config
+  (auth-source-pass-enable)
+
+  (defvar auth-source-pass--cache (make-hash-table :test #'equal))
+
+  (defun auth-source-pass--reset-cache ()
+    (setq auth-source-pass--cache (make-hash-table :test #'equal)))
+
+  (defun auth-source-pass--read-entry (entry)
+    "Return a string with the file content of ENTRY."
+    (run-at-time 45 nil #'auth-source-pass--reset-cache)
+    (let ((cached (gethash entry auth-source-pass--cache)))
+      (or cached
+          (puthash
+           entry
+           (with-temp-buffer
+             (insert-file-contents (expand-file-name
+                                    (format "%s.gpg" entry)
+                                    (getenv "PASSWORD_STORE_DIR")))
+             (buffer-substring-no-properties (point-min) (point-max)))
+           auth-source-pass--cache))))
+
+  (defun auth-source-pass-entries ()
+    "Return a list of all password store entries."
+    (let ((store-dir (getenv "PASSWORD_STORE_DIR")))
+      (mapcar
+       (lambda (file) (file-name-sans-extension (file-relative-name file store-dir)))
+       (directory-files-recursively store-dir "\.gpg$")))))
 
 (use-package auto-yasnippet
   :after yasnippet
@@ -840,16 +882,13 @@
 (use-package dot-org
   :straight f
   :load-path "lisp"
-  :commands my/org-startup
-  :bind* (("M-C"   . jump-to-org-agenda)
-          ("M-m"   . org-smart-capture)
+  :bind* (("M-m"   . org-smart-capture)
           ("M-M"   . org-inline-note)
           ("C-c a" . org-agenda)
           ("C-c S" . org-store-link)
           ("C-c l" . org-insert-link))
   :config
-  (run-with-idle-timer 300 t 'jump-to-org-agenda)
-  (my/org-setup))
+  (setq initial-buffer-choice org-default-notes-files))
 
 (use-package ediff
   :bind (("C-c = b" . ediff-buffers)
