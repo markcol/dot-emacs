@@ -86,10 +86,6 @@
       (org-todo (if (= n-not-done 0) "DONE" "TODO"))))
 
   :config
-  (unbind-key "C-," org-mode-map)
-  (unbind-key "C-'" org-mode-map)
-  ;;(add-to-list 'org-link-protocols (list "message" 'org-my/message-open nil))
-  (run-with-idle-timer 25 t 'save-org-mode-files)
   (setq org-directory user-org-directory)
   (setq org-default-notes-file (concat org-directory "inbox.org"))
   (setq org-agenda-diary-file (concat org-directory "diary.org"))

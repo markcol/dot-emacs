@@ -458,15 +458,15 @@
   ;; Hydra for rust's cargo
   (defhydra hydra-cargo (:color blue :columns 4)
     "cargo"
-    ("c"  cargo-process-build "build")
-    ("tt" cargo-process-test "test all")
-    ("tf" cargo-process-current-test "test current function")
-    ("b"  cargo-process-bench "benchmark all")
-    ("C"  cargo-process-clean "clean")
-    ("dd" cargo-process-doc "build documentation")
-    ("do" cargo-process-doc-open "build and open documentation")
-    ("r"  cargo-process-run "run")
-    ("y"  cargo-process-clippy "clippy"))
+    ("c"  cargo-process-build         "build")
+    ("tt" cargo-process-test          "test all")
+    ("tf" cargo-process-current-test  "test current function")
+    ("b"  cargo-process-bench         "benchmark all")
+    ("C"  cargo-process-clean         "clean")
+    ("dd" cargo-process-doc           "build documentation")
+    ("do" cargo-process-doc-open      "build and open documentation")
+    ("r"  cargo-process-run           "run")
+    ("y"  cargo-process-clippy        "clippy"))
   (general-define-key :keymaps 'rust-mode-map :states 'normal "c" #'hydra-cargo/body)
   :hook (rust-mode . cargo-minor-mode))
 
@@ -567,6 +567,9 @@
 (use-package company-auctex
   :after (company latex))
 
+(use-package company-cabal
+  :after (company haskell-cabal))
+
 (use-package company-elisp
   :disabled
   :after company
@@ -574,6 +577,7 @@
   (push 'company-elisp company-backends))
 
 (use-package company-math
+  :after company
   :defer t)
 
 (use-package company-quickhelp
@@ -615,6 +619,7 @@
   :after ivy
   :demand t
   :diminish
+  :commands counsel-minibuffer-history
   :custom (counsel-find-file-ignore-regexp
            (concat "\\(\\`\\.[^.]\\|"
                    (regexp-opt completion-ignored-extensions)
@@ -630,10 +635,9 @@
          ("M-x"     . counsel-M-x)
          ;; ("M-y"     . counsel-yank-pop)
 
-         ("M-s f" . counsel-file-jump)
-         ("M-s g" . counsel-rg)
-         ("M-s j" . counsel-dired-jump))
-  :commands counsel-minibuffer-history
+         ("M-s f"   . counsel-file-jump)
+         ("M-s g"   . counsel-rg)
+         ("M-s j"   . counsel-dired-jump))
   :init
   (bind-key "M-r" #'counsel-minibuffer-history minibuffer-local-map)
   :config
@@ -670,10 +674,12 @@
               :caller 'counsel-recoll)))
 
 (use-package counsel-dash
+  :after counsel
   :bind ("C-c C-h" . counsel-dash))
 
 (use-package counsel-osx-app
-  :disabled
+  :if (eq system-type 'darwin)
+  :after counsel
   :bind* ("S-M-SPC" . counsel-osx-app)
   :commands counsel-osx-app
   :config
@@ -846,6 +852,7 @@
         (funcall dired-omit-regexp-orig)))))
 
 (use-package dired-toggle
+  :after dired
   :bind ("C-c ~" . dired-toggle)
   :preface
   (defun my/dired-toggle-mode-hook ()
@@ -854,10 +861,6 @@
     (setq-local visual-line-fringe-indicators '(nil right-curly-arrow))
     (setq-local word-wrap nil))
   :hook (dired-toggle-mode . my/dired-toggle-mode-hook))
-
-(use-package dired-x
-  :disabled
-  :after dired)
 
 (use-package docker
   :defer 15
@@ -870,10 +873,11 @@
   (docker-global-mode))
 
 (use-package docker-compose-mode
+  :after docker
   :mode "docker-compose.*\.yml\\'")
 
 (use-package docker-tramp
-  :after tramp
+  :after docker tramp
   :defer 5)
 
 (use-package dockerfile-mode
@@ -1035,6 +1039,7 @@ _h_: paragraph
              flycheck-previous-error)
   :init
   (dolist (where '((emacs-lisp-mode-hook . emacs-lisp-mode-map)
+		   (haskell-mode-hook    . haskell-mode-map)
                    (rust-mode-hook       . rust-mode-map)
                    (js2-mode-hook        . js2-mode-map)
                    (c-mode-common-hook   . c-mode-base-map)))
@@ -1044,12 +1049,16 @@ _h_: paragraph
                  (bind-key "M-p" #'flycheck-previous-error ,(cdr where)))
               t))
   :config
-  (defalias 'show-error-at-point-soon
-    'flycheck-show-error-at-point)
+  (defalias 'show-error-at-point-soon 'flycheck-show-error-at-point)
   (setq-default flycheck-display-errors-delay 0.5))
 
+(use-package flycheck-haskell
+  :after (flycheck haskell-mode)
+  :config
+  (flycheck-haskell-setup))
+
 (use-package flycheck-rust
-  :after rust-mode
+  :after (flycheck rust-mode)
   :config
   (flycheck-rust-setup))
 
@@ -1063,15 +1072,7 @@ _h_: paragraph
 
 (use-package flyspell
   :defer
-  :init
-  ;; Use Aspell for spellcheck
-  ;; (setq ispell-program-name (concat brew-prefix "/bin/aspell"))
-  ;; (setq ispell-list-command "--list")
-  ;; (setq ispell-dictionary "en_US")
-
-  ;; Flyspell messages slow down the spellchecking process
-  (setq flyspell-issue-message-flag nil)
-
+  :preface
   ;; Don't spell check embedded snippets in org-mode
   ;; Source: http://emacs.stackexchange.com/a/9347
   (defun org-mode-flyspell-verify-ignore-blocks (return-value)
@@ -1089,6 +1090,15 @@ _h_: paragraph
           (setq case-fold-search old-flag))
         (if (and b e (< (point) e)) (setq rlt nil)))
       return-value))
+  
+  :init
+  ;; Use Aspell for spellcheck
+  ;; (setq ispell-program-name (concat brew-prefix "/bin/aspell"))
+  ;; (setq ispell-list-command "--list")
+  ;; (setq ispell-dictionary "en_US")
+
+  ;; Flyspell messages slow down the spellchecking process
+  (setq flyspell-issue-message-flag nil)
   (advice-add 'org-mode-flyspell-verify :filter-return 'org-mode-flyspell-verify-ignore-blocks))
 
 (use-package flyspell-correct-ivy
@@ -1108,6 +1118,24 @@ _h_: paragraph
   :defer t
   :init
   (autoload #'fullframe "fullframe"))
+
+(use-package ghc
+  :disabled t
+  :load-path
+  (lambda ()
+    (cl-mapcan
+     #'(lambda (lib) (directory-files lib t "^ghc-"))
+     (cl-mapcan
+      #'(lambda (lib) (directory-files lib t "^elpa$"))
+      (filter (apply-partially #'string-match "-emacs-ghc-") load-path))))
+  :after haskell-mode
+  :commands ghc-init
+  :hook (haskell-mode . ghc-init)
+  :config
+  (setenv "cabal_helper_libexecdir"
+          (file-name-directory
+           (substring
+            (shell-command-to-string "which cabal-helper-wrapper") 0 -1))))
 
 (use-package gist
   :no-require t
@@ -1175,6 +1203,170 @@ _h_: paragraph
          ("M-s F" . find-grep)
          ("M-s G" . grep)
          ("M-s d" . find-grep-dired)))
+
+(use-package haskell-edit
+  :straight f
+  :load-path "lisp/haskell-config"
+  :after haskell-mode
+  :bind (:map haskell-mode-map
+              ("C-c M-q" . haskell-edit-reformat)))
+
+(use-package haskell-mode
+  :defines (haskell-process-reload-with-fbytecode)
+  :mode (("\\.hs\\(c\\|-boot\\)?\\'" . haskell-mode)
+         ("\\.lhs\\'" . literate-haskell-mode)
+         ("\\.cabal\\'" . haskell-cabal-mode))
+  :bind (:map haskell-mode-map
+              ("C-c C-h" . my/haskell-hoogle)
+              ("C-c C-," . haskell-navigate-imports)
+              ("C-c C-." . haskell-mode-format-imports)
+              ("C-c C-u" . my/haskell-insert-undefined)
+              ("M-s")
+              ("M-t"))
+  :preface
+  (defun my/haskell-insert-undefined ()
+    (interactive) (insert "undefined"))
+
+  (defun snippet (name)
+    (interactive "sName: ")
+    (find-file (expand-file-name (concat name ".hs") "~/src/notes"))
+    (haskell-mode)
+    (goto-char (point-min))
+    (when (eobp)
+      (insert "hdr")
+      (yas-expand)))
+
+  (defvar hoogle-server-process nil)
+  (defun my/haskell-hoogle (query &optional arg)
+    "Do a Hoogle search for QUERY."
+    (interactive
+     (let ((def (haskell-ident-at-point)))
+       (if (and def (symbolp def)) (setq def (symbol-name def)))
+       (list (read-string (if def
+                              (format "Hoogle query (default %s): " def)
+                            "Hoogle query: ")
+                          nil nil def)
+             current-prefix-arg)))
+    (unless (and hoogle-server-process
+                 (process-live-p hoogle-server-process))
+      (message "Starting local Hoogle server on port 8687...")
+      (with-current-buffer (get-buffer-create " *hoogle-web*")
+        (cd temporary-file-directory)
+        (setq hoogle-server-process
+              (start-process "hoogle-web" (current-buffer) "hoogle"
+                             "server" "--local" "--port=8687")))
+      (message "Starting local Hoogle server on port 8687...done"))
+    (browse-url
+     (format "http://127.0.0.1:8687/?hoogle=%s"
+             (replace-regexp-in-string
+              " " "+" (replace-regexp-in-string "\\+" "%2B" query)))))
+
+  (defvar haskell-prettify-symbols-alist
+    '(("::"     . ?∷)
+      ("forall" . ?∀)
+      ("exists" . ?∃)
+      ("->"     . ?→)
+      ("<-"     . ?←)
+      ("=>"     . ?⇒)
+      ("~>"     . ?⇝)
+      ("<~"     . ?⇜)
+      ("<>"     . ?⨂)
+      ("msum"   . ?⨁)
+      ("\\"     . ?λ)
+      ("not"    . ?¬)
+      ("&&"     . ?∧)
+      ("||"     . ?∨)
+      ("/="     . ?≠)
+      ("<="     . ?≤)
+      (">="     . ?≥)
+      ("<<<"    . ?⋘)
+      (">>>"    . ?⋙)
+
+      ("`elem`"             . ?∈)
+      ("`notElem`"          . ?∉)
+      ("`member`"           . ?∈)
+      ("`notMember`"        . ?∉)
+      ("`union`"            . ?∪)
+      ("`intersection`"     . ?∩)
+      ("`isSubsetOf`"       . ?⊆)
+      ("`isProperSubsetOf`" . ?⊂)
+      ("undefined"          . ?⊥)))
+
+  :preface
+  (require 'haskell)
+  (require 'haskell-doc)
+
+  (defun my/haskell-mode-hook ()
+    (haskell-indentation-mode)
+    (interactive-haskell-mode)
+    (diminish 'interactive-haskell-mode)
+    (flycheck-mode 1)
+    (setq-local prettify-symbols-alist haskell-prettify-symbols-alist)
+    (prettify-symbols-mode 1)
+    (bug-reference-prog-mode 1))
+
+  (defun haskell-process-load-complete (session process buffer reload module-buffer &optional cont)
+    "Handle the complete loading response. BUFFER is the string of
+  text being sent over the process pipe. MODULE-BUFFER is the
+  actual Emacs buffer of the module being loaded."
+    (when (get-buffer (format "*%s:splices*" (haskell-session-name session)))
+      (with-current-buffer (haskell-interactive-mode-splices-buffer session)
+        (erase-buffer)))
+    (let* ((ok (cond
+                ((haskell-process-consume
+                  process
+                  "Ok, \\(?:\\([0-9]+\\|one\\)\\) modules? loaded\\.$")
+                 t)
+                ((haskell-process-consume
+                  process
+                  "Failed, \\(?:[0-9]+\\) modules? loaded\\.$")
+                 nil)
+                ((haskell-process-consume
+                  process
+                  "Ok, modules loaded: \\(.+\\)\\.$")
+                 t)
+                ((haskell-process-consume
+                  process
+                  "Failed, modules loaded: \\(.+\\)\\.$")
+                 nil)
+                (t
+                 (error (message "Unexpected response from haskell process.")))))
+           (modules (haskell-process-extract-modules buffer))
+           (cursor (haskell-process-response-cursor process))
+           (warning-count 0))
+      (haskell-process-set-response-cursor process 0)
+      (haskell-check-remove-overlays module-buffer)
+      (while
+          (haskell-process-errors-warnings module-buffer session process buffer)
+        (setq warning-count (1+ warning-count)))
+      (haskell-process-set-response-cursor process cursor)
+      (if (and (not reload)
+               haskell-process-reload-with-fbytecode)
+          (haskell-process-reload-with-fbytecode process module-buffer)
+        (haskell-process-import-modules process (car modules)))
+      (if ok
+          (haskell-mode-message-line (if reload "Reloaded OK." "OK."))
+        (haskell-interactive-mode-compile-error session "Compilation failed."))
+      (when cont
+        (condition-case-unless-debug e
+            (funcall cont ok)
+          (error (message "%S" e))
+          (quit nil)))))
+  
+  :config
+  (eval-after-load 'align
+    '(nconc
+      align-rules-list
+      (mapcar #'(lambda (x)
+                  `(,(car x)
+                    (regexp . ,(cdr x))
+                    (modes quote (haskell-mode literate-haskell-mode))))
+              '((haskell-types       . "\\(\\s-+\\)\\(::\\|∷\\)\\s-+")
+                (haskell-assignment  . "\\(\\s-+\\)=\\s-+")
+                (haskell-arrows      . "\\(\\s-+\\)\\(->\\|→\\)\\s-+")
+                (haskell-left-arrows . "\\(\\s-+\\)\\(<-\\|←\\)\\s-+")))))
+
+  :hook (haskell-mode . my/haskell-mode-hook))
 
 (use-package highlight-sexp
   :defer t
@@ -1435,6 +1627,13 @@ _h_: paragraph
   :straight f
   :after lsp-ui)
 
+(use-package lsp-haskell
+  ;; https://github.com/emacs-lsp/lsp-haskell
+  ;; Reuqires installation of haskell-lsp: https://github.com/alanz/haskell-lsp
+  :if (executable-find "hie")
+  :after (lsp-mode haskell-mode lsp-ui)
+  :hook (haskell-mode . lsp-haskell-enable))
+
 (use-package lsp-mode
   :after projectile
   :preface
@@ -1453,7 +1652,7 @@ _h_: paragraph
 (use-package lsp-ui
   :after lsp-mode
   :hook (lsp-after-open . lsp-enable-imenu)
-  :hook (lsp-mode . lsp-ui-mode))
+  :hook (lsp-mode       . lsp-ui-mode))
 
 (use-package markdown-mode
   :mode (("\\.md\\'"     . markdown-mode)
@@ -2075,9 +2274,11 @@ _h_: paragraph
 	      ("p"    . treemacs-projectile-toggle)))
 
 (use-package visual-fill-column
+  :unless noninteractive
   :commands visual-fill-column-mode)
 
 (use-package visual-regexp
+  :unless noninteractive
   :bind (("C-c r"   . vr/replace)
          ("C-c %"   . vr/query-replace)
          ("<C-m> /" . vr/mc-mark)))
@@ -2149,7 +2350,7 @@ _h_: paragraph
       (let ((require-final-newline t))
         (save-buffer))))
 
-  (defun maybe-turn-on-whitespace ()
+  (defun my/maybe-turn-on-whitespace ()
     "depending on the file, maybe clean up whitespace."
     (when (and (not (or (memq major-mode '(markdown-mode))
                         (and buffer-file-name
@@ -2172,7 +2373,7 @@ _h_: paragraph
   :config
   (remove-hook 'find-file-hooks 'whitespace-buffer)
   (remove-hook 'kill-buffer-hook 'whitespace-buffer)
-  :hook (find-file-hooks . maybe-turn-on-whitespace))
+  :hook (find-file-hooks . my/maybe-turn-on-whitespace))
 
 (use-package whitespace-cleanup-mode
   :defer 5
