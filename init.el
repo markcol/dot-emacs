@@ -1925,7 +1925,12 @@ _h_: paragraph
   (pdf-tools-install))
 
 (use-package phi-search
-  :defer 5)
+  :defer 5
+  :bind (("C-s" . phi-search)
+	 ("C-r" . phi-search-backward)
+	 ("M-%" . phi-replace-query))
+  :init
+  (require 'phi-replace))
 
 (use-package phi-search-mc
   :after (phi-search multiple-cursors)
@@ -2135,7 +2140,9 @@ _h_: paragraph
 
 (use-package smart-newline
   :diminish
-  :commands smart-newline-mode)
+  :commands smart-newline-mode
+  :config
+  (smart-newline-mode))
 
 (use-package smart-region
   :disabled t
@@ -2249,10 +2256,11 @@ _h_: paragraph
   (treemacs-filewatch-mode t)
   (pcase (cons (not (null (executable-find "git")))
 	       (not (null (executable-find "python3"))))
-    (`(t . t)
-     (treemacs-git-mode 'extended))
-    (`(t . _)
-     (treemacs-git-mode 'simple)))
+    t     (treemacs-git-mode 'extended))
+  (`(t . t)
+   (`(t . _)
+    (treemacs-git-mode 'simple)))
+  
   :bind (([f8]    . treemacs-toggle)
 	 ("M-0"   . treemacs-select-window)
 	 ("C-c 1" . treemacs-delete-other-windows)
