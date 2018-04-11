@@ -87,9 +87,9 @@
 
   :config
   (setq org-directory user-org-directory)
-  (setq org-default-notes-file (concat org-directory "inbox.org"))
-  (setq org-agenda-diary-file (concat org-directory "diary.org"))
-  (setq org-agenda-files (list org-directory (concat org-directory "projects/")))
+  (setq org-default-notes-file (expand-file-name "inbox.org" org-directory))
+  (setq org-agenda-diary-file (expand-file-name "diary.org" org-directory))
+  (setq org-agenda-files (list (expand-file-name org-directory) (expand-file-name "projects/" org-directory)))
   (setq org-hide-leading-stars t)
   (setq org-use-sub-superscripts "{}")
   (setq org-footnote-define-inline t)
@@ -191,7 +191,7 @@
   :hook (org-agenda-mode-hook my/org-agenda-width))
 
 (use-package org-agenda
-  :straight f
+  :straight f 				; part of org
   :bind (("<f6>"  . my/org-agenda)
 	 ("C-c a" . org-agenda))
   :init
@@ -207,7 +207,7 @@
 	  (search    . " %i %-12:c %b"))))
 
 (use-package org-capture
-  :straight f
+  :straight f				; psrt of org
   :bind (("C-c r" . org-capture))
   :config
   (setq org-capture-templates
@@ -226,14 +226,8 @@
            "** %^{Title}\n:PROPERTIES:\n:Author: %^{Author}p \n:Started: %u\n:Finished: \n:END:\n\n"
            :immediate-finish t))))
 
-(use-package ob-diagrams)
-
-(use-package ob-restclient)
-
-(use-package ob-rust)
-
 (use-package org-babel
-  :straight f
+  :straight f				; part of org
   :no-require
   :after ob-restclient
   :config
@@ -254,7 +248,14 @@
      (sqlite     . t)
      )))
 
-(use-package org-bookmark-heading)
+(use-package ob-diagrams
+  :after org-babel)
+
+(use-package ob-restclient
+  :after org-babel)
+
+(use-package ob-rust
+  :after org-babel)
 
 (use-package org-noter
   :commands org-noter)
@@ -268,7 +269,8 @@
 	       '("\\.pdf::\\([[:digit:]]+\\)\\'" . org-pdfview-open)))
 
 (use-package org-protocol
-  :straight f)
+  :straight f				; part of org
+  )
 
 (use-package org-ref
   ;; See documentation at https://github.com/jkitchin/org-ref/blob/master/org-ref.org
@@ -320,8 +322,54 @@
   :bind (:map org-mode-map
 	      ("C-M-y" . org-rich-yank)))
 
+(use-package org-super-agenda
+  ;; https://github.com/alphapapa/org-super-agenda
+  :config
+  (let ((org-super-agenda-groups
+	 '(;; Each group has an implicit boolean OR operator between its selectors.
+	   (:name "Today"  ; Optionally specify section name
+		  :time-grid t  ; Items that appear on the time grid
+		  :todo "TODAY")  ; Items that have this TODO keyword
+	   (:name "Important"
+		  ;; Single arguments given alone
+		  :tag "bills"
+		  :priority "A")
+	   ;; Set order of multiple groups at once
+	   (:order-multi (2 (:name "Shopping in town"
+				   ;; Boolean AND group matches items that match all subgroups
+				   :and (:tag "shopping" :tag "@town"))
+			    (:name "Food-related"
+				   ;; Multiple args given in list with implicit OR
+				   :tag ("food" "dinner"))
+			    (:name "Personal"
+				   :habit t
+				   :tag "personal")
+			    (:name "Space-related (non-moon-or-planet-related)"
+				   ;; Regexps match case-insensitively on the entire entry
+				   :and (:regexp ("space" "NASA")
+						 ;; Boolean NOT also has implicit OR between selectors
+						 :not (:regexp "moon" :tag "planet")))))
+	   ;; Groups supply their own section names when none are given
+	   (:todo "WAITING" :order 8)  ; Set order of this section
+	   (:todo ("SOMEDAY" "TO-READ" "CHECK" "TO-WATCH" "WATCHING")
+		  ;; Show this group at the end of the agenda (since it has the
+		  ;; highest number). If you specified this group last, items
+		  ;; with these todo keywords that e.g. have priority A would be
+		  ;; displayed in that group instead, because items are grouped
+		  ;; out in the order the groups are listed.
+		  :order 9)
+	   (:priority<= "B"
+			;; Show this section after "Today" and "Important", because
+			;; their order is unspecified, defaulting to 0. Sections
+			;; are displayed lowest-number-first.
+			:order 1)
+	   ;; After the last group, the agenda will display items that didn't
+	   ;; match any of these groups, with the default order position of 99
+	   )))
+    (org-agenda nil "a")))
+
 (use-package org-velocity
-  :straight f
+  :straight f				; part of org
   :bind ("C-, C-." . org-velocity))
 
 (use-package org-web-tools
