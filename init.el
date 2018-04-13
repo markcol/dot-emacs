@@ -1211,16 +1211,28 @@ _h_: paragraph
   :bind (:map haskell-mode-map
               ("C-c M-q" . haskell-edit-reformat)))
 
+(use-package hindent-mode
+  :straight (:host github :repo "commercialhaskell/hindent")
+  :after haskell-mode
+  :hook (haskell-mode . hindent-mode))
+
 (use-package haskell-mode
   :defines (haskell-process-reload-with-fbytecode)
   :mode (("\\.hs\\(c\\|-boot\\)?\\'" . haskell-mode)
          ("\\.lhs\\'" . literate-haskell-mode)
          ("\\.cabal\\'" . haskell-cabal-mode))
+  :custom
+  (haskell-tags-on-save t)
+  (haskell-process-type 'cabal-repl)	; or 'stack-ghci if using Stack
+  (haskell-process-suggest-remove-import-lines t)
+  (haskell-process-auto-import-loaded-modules t)
+  (haskell-process-log t)
   :bind (:map haskell-mode-map
               ("C-c C-h" . my/haskell-hoogle)
               ("C-c C-," . haskell-navigate-imports)
               ("C-c C-." . haskell-mode-format-imports)
               ("C-c C-u" . my/haskell-insert-undefined)
+	      ("[f7]"    . haskell-navigate-imports)
               ("M-s")
               ("M-t"))
   :preface
@@ -1438,12 +1450,13 @@ _h_: paragraph
 		       (text-scale-adjust 1))))
 
 (use-package info-look
+  :after (info)
   :defer t
   :init
   (autoload 'info-lookup-add-help "info-look"))
 
 (use-package info-lookmore
-  :after info-look
+  :after (info info-look)
   :config
   (info-lookmore-elisp-cl)
   (info-lookmore-elisp-userlast)
@@ -1548,6 +1561,7 @@ _h_: paragraph
     (setq ivy-re-builders-alist '((t . ivy--regex-fuzzy)))))
 
 (use-package ivy-bibtex
+  :after (ivy)
   :commands ivy-bibtex)
 
 (use-package ivy-hydra
@@ -1555,6 +1569,7 @@ _h_: paragraph
   :defer t)
 
 (use-package ivy-pass
+  :after (ivy)
   :commands ivy-pass)
 
 (use-package ivy-rich
@@ -1864,7 +1879,8 @@ _h_: paragraph
   (defun tidy-xml-buffer ()
     (interactive)
     (save-excursion
-      (call-process-region (point-min) (point-max) "tidy" t t nil
+      (call-process-region (point-min) (point-max)
+			   "tidy" t t nil
                            "-xml" "-i" "-wrap" "0" "-omit" "-q" "-utf8")))
   :init
   (defalias 'xml-mode 'nxml-mode)
@@ -1925,13 +1941,8 @@ _h_: paragraph
   (pdf-tools-install))
 
 (use-package phi-search
-  :defer 5
-  :bind (("C-s" . phi-search)
-	 ("C-r" . phi-search-backward)
-	 ("M-%" . phi-replace-query))
-  :init
-  (require 'phi-replace))
-
+  :defer 5)
+  
 (use-package phi-search-mc
   :after (phi-search multiple-cursors)
   :config
@@ -2034,7 +2045,7 @@ _h_: paragraph
 
 (use-package redshank
   :diminish
-  :hook ((lisp-mode emacs-lisp-mode) . redshank-mode))
+  :hook ((lisp-mode slime-repl-mode) . redshank-mode))
 
 (use-package reftex
   :after auctex
@@ -2062,8 +2073,7 @@ _h_: paragraph
 	      ("<=" . (?· (Br . Bl) ?≤))
 	      ("!=" . (?· (Br . Bl) ?≠))
 	      ("=>" . (?· (Br . Bl) ?➡))
-	      ("->" . (?· (Br . Bl) ?→))
-	      )
+	      ("->" . (?· (Br . Bl) ?→)))
       (push it prettify-symbols-alist)))
 
   (defun my/compile-single-rust-file ()
@@ -2078,7 +2088,7 @@ _h_: paragraph
           (car (s-split " " (-first
                              (lambda (line) (s-match "default" line))
                              (s-lines (shell-command-to-string "rustup toolchain list"))))))
-    ;; tell racer to use the rustup-managed rust-src
+    ;; Tell racer to use the rustup-managed rust-src
     ;; rustup component add rust-src
     (setq rust-src-path (concat (getenv "HOME") "/.multirust/toolchains/"
 				rust-default-toolchain "/lib/rustlib/src/rust/src"))
@@ -2086,11 +2096,10 @@ _h_: paragraph
 				rust-default-toolchain "/bin"))
     (setq racer-rust-src-path rust-src-path)
     (setenv "RUST_SRC_PATH" rust-src-path)
-    (setenv "RUSTC" rust-bin-path)
+    (setenv "RUSTC" rust-bin-path))
 
-    ;; Register rust-mode in company dabbrev code modes
-    ;;   (add-to-list 'company-dabbrev-code-modes 'rust-mode)
-    )
+  ;; Register rust-mode in company dabbrev code modes
+  ;;   (add-to-list 'company-dabbrev-code-modes 'rust-mode)
 
   :hook (rust-mode . my/rust-mode-hook))
 
@@ -2120,11 +2129,11 @@ _h_: paragraph
 
 (use-package server
   :preface
-  (defun server-enable ()
-    "Start an Emacs server process if none are already running."
-    (unless (server-running-p)
+  (defun my/server-enable ()
+    "Start an Emacs server process if one is not already running."
+    (unless server-process
       (server-start)))
-  :hook (after-init . server-enable))
+  :hook (after-init . my/server-enable))
 
 (use-package slime
   :commands slime
@@ -2474,12 +2483,18 @@ _h_: paragraph
   (yas-global-mode 1))
 
 (use-package zeal-at-point
-  :disabled
-  :ensure-system-package zeal
+  :if (executable-find "zeal")
   :defer t
   :config
   (add-to-list 'zeal-at-point-mode-alist '(python-mode . "python"))
   (add-to-list 'zeal-at-point-mode-alist '(rust-mode   . "rust")))
+
+(use-package dash-at-point
+  :if (executable-find "dash")
+  :defer t
+  :config
+  (add-to-list 'dash-at-point-mode-alist '(python-mode . "python"))
+  (add-to-list 'dash-at-point-mode-alist '(rust-mode   . "rust")))
 
 ;;;
 ;;; Finalization
@@ -2498,4 +2513,4 @@ _h_: paragraph
                         ,load-file-name elapsed))) t)
 
 (provide 'init)
-;; init.el ends here
+;;; init.el ends here
