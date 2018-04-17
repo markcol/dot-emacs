@@ -9,8 +9,7 @@
       file-name-handler-alist nil
       message-log-max 16384
       gc-cons-threshold 402653184
-      gc-cons-percentage 0.6
-      auto-window-vscroll nil)
+      gc-cons-percentage 0.6)
 
 (defun my/restore-default-values ()
   "Restore the default values of performance-critical variables."
@@ -42,12 +41,23 @@
   ;; Use straight.el to load missing packages for `use-package` by default.
   (setq straight-use-package-by-default t)
 
+  ;; Enable tracing of use-package declarations for easier debugging.
+  ;; (setq use-package-verbose t)
+
   ;; Bootstrap `use-package` integration for straight.el.
   (straight-use-package 'use-package)
-  (use-package bind-key
-    :commands bind-key))
-
-(defalias 'yes-or-no-p 'y-or-n-p)
+  (use-package bind-key :commands bind-key)
+  (use-package use-package-ensure-system-package)
+  (use-package use-package-chords
+    :disabled
+    :config
+    ;; Define your chord bindings in the same manner as :bind using a cons or a list of conses:
+    ;;
+    ;; (use-package ace-jump-mode
+    ;;  :chords (("jj" . ace-jump-char-mode)
+    ;;           ("jk" . ace-jump-word-mode)
+    ;;           ("jl" . ace-jump-line-mode)))
+    (key-chord-mode 1)))
 
 ;;; Settings
 
@@ -55,7 +65,7 @@
   (defconst user-data-directory (expand-file-name "data" user-emacs-directory)
     "Directory for data files.")
   
-  (defconst user-document-directory "c:/Users/mhcolbur.ORADEV/Documents"
+  (defconst user-document-directory (expand-file-name "~/Documents")
     "Directory for user documents.")
 
   (defconst user-org-directory (expand-file-name "org" user-document-directory)
@@ -69,12 +79,16 @@
   (setq make-backup-files nil
         auto-save-default nil
         inhibit-splash-screen t
-        confirm-kill-emacs #'yes-or-no-p
         visible-bell nil
         indent-tabs-mode nil
         tab-width 2
         css-indent-offset 2
-        load-prefer-newer t))
+        load-prefer-newer t
+	      auto-window-vscroll nil)
+  
+  (defalias 'yes-or-no-p #'y-or-n-p)
+  (setq confirm-kill-emacs #'y-or-n-p))
+
 
 ;;;
 ;;; Functions
@@ -246,10 +260,8 @@
             (bind-key (car entry) (cdr entry)))
         '(("C-,"   . my/ctrl-comma-map)
           ("<C-m>" . my/ctrl-m-map)
-
           ("C-h e" . my/ctrl-h-e-map)
           ("C-h x" . my/ctrl-h-x-map)
-
           ("C-c b" . my/ctrl-c-b-map)
           ("C-c e" . my/ctrl-c-e-map)
           ("C-c m" . my/ctrl-c-m-map)
@@ -258,7 +270,7 @@
           ("C-c y" . my/yasnippet-map)	; yasnippet
           ("C-c H" . my/ctrl-c-H-map)
           ("C-c N" . my/ctrl-c-N-map)
-          ("C-c (" . my/paredit-map) ; paredit
+          ("C-c (" . my/paredit-map)	  ; paredit
           ("C-c -" . my/ctrl-c-minus-map)
           ("C-c =" . my/ctrl-c-equals-map)
           ("C-c ." . my/ctrl-c-r-map))))
@@ -317,11 +329,8 @@
   (sml/setup))
 
 (setq default-frame-alist '((height . 58)
-			    (width  . 136)
-			    (font   . "Fantasque Sans Mono-10")))
-
-;; (set-frame-font "Fantasque Sans Mono-10" nil t)
-
+			                      (width  . 136)
+			                      (font   . "Fantasque Sans Mono-12")))
 
 ;;;
 ;;; Packages
@@ -467,24 +476,6 @@
 (use-package bytecomp-simplify
   :defer 15)
 
-(use-package cargo
-  :after rust-mode hydra
-  :config
-  ;; Hydra for rust's cargo
-  (defhydra hydra-cargo (:color blue :columns 4)
-    "cargo"
-    ("c"  cargo-process-build         "build")
-    ("tt" cargo-process-test          "test all")
-    ("tf" cargo-process-current-test  "test current function")
-    ("b"  cargo-process-bench         "benchmark all")
-    ("C"  cargo-process-clean         "clean")
-    ("dd" cargo-process-doc           "build documentation")
-    ("do" cargo-process-doc-open      "build and open documentation")
-    ("r"  cargo-process-run           "run")
-    ("y"  cargo-process-clippy        "clippy"))
-  (general-define-key :keymaps 'rust-mode-map :states 'normal "c" #'hydra-cargo/body)
-  :hook (rust-mode . cargo-minor-mode))
-
 (use-package counsel
   :bind (("M-x"		. counsel-M-x)
          ("C-x C-f"	. counsel-find-file)
@@ -504,11 +495,12 @@
   (ivy-set-actions 'counsel-git-grep
                    '(("j" find-file-other-window "other"))))
 
-(use-package cmake-font-lock
-  :hook (cmake-mode . cmake-font-lock-activate))
 
 (use-package cmake-mode
-  :mode "CMakeLists\\.txt\\'")
+  :mode "CMakeLists\\.txt\\'"
+  :config
+  (use-package cmake-font-lock
+    :hook (cmake-mode . cmake-font-lock-activate)))
 
 (use-package company
   :defer 5
@@ -581,9 +573,6 @@
 
 (use-package company-auctex
   :after (company latex))
-
-(use-package company-cabal
-  :after (company haskell-cabal))
 
 (use-package company-elisp
   :disabled
@@ -713,9 +702,11 @@
     #'counsel-projectile-rg))
 
 (use-package css-mode
+  :defer t
   :mode "\\.css\\'")
 
 (use-package csv-mode
+  :defer t
   :mode "\\.csv\\'")
 
 (use-package diff-hl
@@ -867,40 +858,40 @@
         dired-use-ls-dired nil
         delete-by-moving-to-trash t)
   :config
+  (use-package dired-toggle
+    :after dired
+    :bind ("C-c ~" . dired-toggle)
+    :preface
+    (defun my/dired-toggle-mode-hook ()
+      (interactive)
+      (visual-line-mode 1)
+      (setq-local visual-line-fringe-indicators '(nil right-curly-arrow))
+      (setq-local word-wrap nil))
+    :hook (dired-toggle-mode . my/dired-toggle-mode-hook))
+  
   (defvar dired-omit-regexp-orig (symbol-function 'dired-omit-regexp))
   :hook (dired-mode . dired-hide-details-mode))
-
-(use-package dired-toggle
-  :after dired
-  :bind ("C-c ~" . dired-toggle)
-  :preface
-  (defun my/dired-toggle-mode-hook ()
-    (interactive)
-    (visual-line-mode 1)
-    (setq-local visual-line-fringe-indicators '(nil right-curly-arrow))
-    (setq-local word-wrap nil))
-  :hook (dired-toggle-mode . my/dired-toggle-mode-hook))
 
 (use-package docker
   :defer 15
   :diminish
   :config
+  (use-package docker-compose-mode
+    :after docker
+    :mode "docker-compose.*\.yml\\'")
+  
+  (use-package dockerfile-mode
+    :mode "Dockerfile[a-zA-Z.-]*\\'")
+
+  (use-package docker-tramp
+    :after docker tramp
+    :defer 5)
+  
   (require 'docker-images)
   (require 'docker-containers)
   (require 'docker-volumes)
   (require 'docker-networks)
   (docker-global-mode))
-
-(use-package docker-compose-mode
-  :after docker
-  :mode "docker-compose.*\.yml\\'")
-
-(use-package docker-tramp
-  :after docker tramp
-  :defer 5)
-
-(use-package dockerfile-mode
-  :mode "Dockerfile[a-zA-Z.-]*\\'")
 
 (use-package dot-org
   :straight f
@@ -1006,7 +997,6 @@
     (paredit-mode)))
 
 (use-package expand-region
-  :after hydra
   :commands (er/expand-region
              er/mark-inside-pairs
              er/mark-inside-quotes
@@ -1021,9 +1011,10 @@
              er/mark-email
              er/mark-symbol)
   :config
-  (bind-key "C-="
-            (defhydra hydra-mark (:hint nil)
-              "
+  (with-eval-after-load 'hydra
+    (bind-key "C-="
+              (defhydra hydra-mark (:hint nil)
+                "
 ^Structure^      ^Pairs^              ^Misc^
 ^^^^^^^^-------------------------------------------
 _SPC_: region    _P_: inside pairs    _u_: url
@@ -1032,19 +1023,19 @@ _c_: comment     _Q_: inside quotes   _s_: symbol
 _._: sentence    _q_: outside quotes
 _h_: paragraph
 "
-              ("SPC" er/expand-region)
-              ("P" er/mark-inside-pairs)
-              ("Q" er/mark-inside-quotes)
-              ("p" er/mark-outside-pairs)
-              ("q" er/mark-outside-quotes)
-              ("d" er/mark-defun)
-              ("c" er/mark-comment)
-              ("." er/mark-text-sentence)
-              ("h" er/mark-text-paragraph)
-              ("w" er/mark-word)
-              ("u" er/mark-url)
-              ("m" er/mark-email)
-              ("s" Er/mark-symbol))))
+                ("SPC" er/expand-region)
+                ("P" er/mark-inside-pairs)
+                ("Q" er/mark-inside-quotes)
+                ("p" er/mark-outside-pairs)
+                ("q" er/mark-outside-quotes)
+                ("d" er/mark-defun)
+                ("c" er/mark-comment)
+                ("." er/mark-text-sentence)
+                ("h" er/mark-text-paragraph)
+                ("w" er/mark-word)
+                ("u" er/mark-url)
+                ("m" er/mark-email)
+                ("s" Er/mark-symbol)))))
 
 (use-package eyebrowse
   :bind-keymap ("C-\\" . eyebrowse-mode-map)
@@ -1062,7 +1053,7 @@ _h_: paragraph
   :bind ("C-c v" . ffap))
 
 (use-package flx)
-  
+
 (use-package flycheck
   :defer t
   :commands (flycheck-mode
@@ -1080,6 +1071,11 @@ _h_: paragraph
                  (bind-key "M-p" #'flycheck-previous-error ,(cdr where)))
               t))
   :config
+  (use-package flycheck-popup-tip
+    :defer t
+    :after flycheck
+    :hook (flycheck-mode . flycheck-popup-tip-mode))
+
   (defalias 'show-error-at-point-soon 'flycheck-show-error-at-point)
   ;; (setq-default flycheck-display-errors-delay 0.5)
   ;; https://github.com/flycheck/flycheck/issues/1129#issuecomment-319600923
@@ -1097,11 +1093,6 @@ _h_: paragraph
 
 (use-package flycheck-package
   :after flycheck)
-
-(use-package flycheck-popup-tip
-  :defer t
-  :after flycheck
-  :hook (flycheck-mode . flycheck-popup-tip-mode))
 
 (use-package flyspell
   :defer
@@ -1123,26 +1114,26 @@ _h_: paragraph
           (setq case-fold-search old-flag))
         (if (and b e (< (point) e)) (setq rlt nil)))
       return-value))
-  
+
   :init
   (when (executable-find "aspell")
     ;; Use Aspell for spellcheck
-    (setq ispell-program-name (concat brew-prefix "/bin/aspell"))
+    (setq ispell-program-name (executable-find "aspell"))
     (setq ispell-list-command "--list")
     (setq ispell-dictionary "en_US"))
 
   ;; Flyspell messages slow down the spellchecking process
   (setq flyspell-issue-message-flag nil)
-  (advice-add 'org-mode-flyspell-verify :filter-return 'org-mode-flyspell-verify-ignore-blocks))
-
-(use-package flyspell-correct-ivy
-  :after flyspell-mode ivy
-  :defer t
-  :bind (:map flyspell-mode-map
-	      ("C-;" . flyspell-correct-word-generic))
-  :init
-  ;; set ivy as correcting interface
-  (setq flyspell-correct-interface 'flyspell-correct-ivy))
+  (advice-add 'org-mode-flyspell-verify :filter-return 'org-mode-flyspell-verify-ignore-blocks)
+  :config
+  (use-package flyspell-correct-ivy
+    :after flyspell-mode ivy
+    :defer t
+    :bind (:map flyspell-mode-map
+	              ("C-;" . flyspell-correct-word-generic))
+    :init
+    ;; set ivy as correcting interface
+    (setq flyspell-correct-interface 'flyspell-correct-ivy)))
 
 (use-package font-lock-studio
   :commands (font-lock-studio
@@ -1152,24 +1143,6 @@ _h_: paragraph
   :defer t
   :init
   (autoload #'fullframe "fullframe"))
-
-(use-package ghc
-  :disabled t
-  :load-path
-  (lambda ()
-    (cl-mapcan
-     #'(lambda (lib) (directory-files lib t "^ghc-"))
-     (cl-mapcan
-      #'(lambda (lib) (directory-files lib t "^elpa$"))
-      (filter (apply-partially #'string-match "-emacs-ghc-") load-path))))
-  :after haskell-mode
-  :commands ghc-init
-  :hook (haskell-mode . ghc-init)
-  :config
-  (setenv "cabal_helper_libexecdir"
-          (file-name-directory
-           (substring
-            (shell-command-to-string "which cabal-helper-wrapper") 0 -1))))
 
 (use-package gist
   :no-require t
@@ -1238,18 +1211,6 @@ _h_: paragraph
          ("M-s G" . grep)
          ("M-s d" . find-grep-dired)))
 
-(use-package haskell-edit
-  :straight f
-  :load-path "lisp/haskell-config"
-  :after haskell-mode
-  :bind (:map haskell-mode-map
-              ("C-c M-q" . haskell-edit-reformat)))
-
-(use-package hindent-mode
-  :straight (:host github :repo "commercialhaskell/hindent")
-  :after haskell-mode
-  :hook (haskell-mode . hindent-mode))
-
 (use-package haskell-mode
   :defines (haskell-process-reload-with-fbytecode)
   :mode (("\\.hs\\(c\\|-boot\\)?\\'" . haskell-mode)
@@ -1266,7 +1227,7 @@ _h_: paragraph
               ("C-c C-," . haskell-navigate-imports)
               ("C-c C-." . haskell-mode-format-imports)
               ("C-c C-u" . my/haskell-insert-undefined)
-	      ("[f7]"    . haskell-navigate-imports)
+	            ("[f7]"    . haskell-navigate-imports)
               ("M-s")
               ("M-t"))
   :preface
@@ -1398,8 +1359,39 @@ _h_: paragraph
             (funcall cont ok)
           (error (message "%S" e))
           (quit nil)))))
-  
+
   :config
+  (use-package company-cabal
+    :defer t
+    :after (company haskell-cabal))
+
+  (use-package ghc
+    :disabled t
+    :load-path
+    (lambda ()
+      (cl-mapcan
+       #'(lambda (lib) (directory-files lib t "^ghc-"))
+       (cl-mapcan
+	      #'(lambda (lib) (directory-files lib t "^elpa$"))
+	      (filter (apply-partially #'string-match "-emacs-ghc-") load-path))))
+    :commands ghc-init
+    :config
+    (setenv "cabal_helper_libexecdir"
+            (file-name-directory
+             (substring
+              (shell-command-to-string "which cabal-helper-wrapper") 0 -1)))
+    :hook (haskell-mode . ghc-init))
+
+  (use-package haskell-edit
+    :straight f
+    :load-path "lisp/haskell-config"
+    :bind (:map haskell-mode-map
+		            ("C-c M-q" . haskell-edit-reformat)))
+
+  (use-package hindent-mode
+    :straight (:host github :repo "commercialhaskell/hindent")
+    :hook (haskell-mode . hindent-mode))
+
   (eval-after-load 'align
     '(nconc
       align-rules-list
@@ -1479,23 +1471,22 @@ _h_: paragraph
   :bind ("C-h C-i" . info-lookup-symbol)
   :config
   :hook (Info-mode . (lambda ()
-		       (setq buffer-face-mode-face '(:family "Bookerly"))
-		       (buffer-face-mode)
-		       (text-scale-adjust 1))))
+		                   (setq buffer-face-mode-face '(:family "Bookerly"))
+		                   (buffer-face-mode)
+		                   (text-scale-adjust 1))))
 
 (use-package info-look
   :after (info)
   :defer t
   :init
-  (autoload 'info-lookup-add-help "info-look"))
-
-(use-package info-lookmore
-  :after (info info-look)
+  (autoload 'info-lookup-add-help "info-look")
   :config
-  (info-lookmore-elisp-cl)
-  (info-lookmore-elisp-userlast)
-  (info-lookmore-elisp-gnus)
-  (info-lookmore-apropos-elisp))
+  (use-package info-lookmore
+    :config
+    (info-lookmore-elisp-cl)
+    (info-lookmore-elisp-userlast)
+    (info-lookmore-elisp-gnus)
+    (info-lookmore-apropos-elisp)))
 
 (use-package isearch
   :straight f
@@ -1591,45 +1582,40 @@ _h_: paragraph
       (apply 'ivy-completing-read args)))
 
   :config
+  (use-package ivy-bibtex
+    :after (ivy)
+    :defer t
+    :commands ivy-bibtex)
+
+  (use-package ivy-hydra
+    :after (hydra)
+    :defer t)
+
+  (use-package ivy-pass
+    :defer t
+    :commands ivy-pass)
+
+  (use-package ivy-rich
+    :demand t
+    :config
+    (ivy-set-display-transformer 'ivy-switch-buffer
+                                 'ivy-rich-switch-buffer-transformer)
+    (setq ivy-virtual-abbreviate 'full
+          ivy-rich-switch-buffer-align-virtual-buffer t
+          ivy-rich-path-style 'abbrev))
+
   (ivy-mode 1)
   (ivy-set-occur 'ivy-switch-buffer 'ivy-switch-buffer-occur)
   (with-eval-after-load 'flx
     (setq ivy-re-builders-alist '((t . ivy--regex-fuzzy)))))
 
-(use-package ivy-bibtex
-  :after (ivy)
-  :commands ivy-bibtex)
-
-(use-package ivy-hydra
-  :after (ivy hydra)
-  :defer t)
-
-(use-package ivy-pass
-  :after (ivy)
-  :commands ivy-pass)
-
-(use-package ivy-rich
-  :after ivy
-  :demand t
-  :config
-  (ivy-set-display-transformer 'ivy-switch-buffer
-                               'ivy-rich-switch-buffer-transformer)
-  (setq ivy-virtual-abbreviate 'full
-        ivy-rich-switch-buffer-align-virtual-buffer t
-        ivy-rich-path-style 'abbrev))
-
-(use-package ivy-hydra
-  :after (hydra ivy)
-  :defer t)
-
 (use-package flycheck
   :defer 2
   :commands (flycheck-mode)
   :config
-  (progn
-    (global-flycheck-mode)
-    (setq-default flycheck-disabled-checkers '(c/c++-clang c/c++-gcc flycheck-rtags))
-    (setq flycheck-emacs-lisp-load-path 'inherit)))
+  (global-flycheck-mode)
+  (setq-default flycheck-disabled-checkers '(c/c++-clang c/c++-gcc flycheck-rtags))
+  (setq flycheck-emacs-lisp-load-path 'inherit))
 
 (use-package json-mode
   :mode "\\.json\\'"
@@ -1671,10 +1657,6 @@ _h_: paragraph
         (2 font-lock-function-name-face
            nil t))))))
 
-(use-package lsp-flycheck
-  :straight f
-  :after lsp-ui)
-
 (use-package lsp-haskell
   ;; https://github.com/emacs-lsp/lsp-haskell
   ;; Reuqires installation of haskell-lsp: https://github.com/alanz/haskell-lsp
@@ -1689,24 +1671,25 @@ _h_: paragraph
     "Set the LSP workspace to the current projectile root when changing projects."
     (when lsp--cur-workspace
       (setq projectile-project-root (lsp--workspace-root lsp--cur-workspace))))
-  
+
   :config
   (use-package lsp-ui
     :hook (lsp-after-open . lsp-enable-imenu)
     :hook (lsp-mode       . lsp-ui-mode))
-  
+
+  (use-package lsp-flycheck
+    :straight f
+    :after lsp-ui)
+
   (with-eval-after-load 'projectile
     (add-hook 'lsp-before-open-hook #'my/set-projectile-root)))
 
 (use-package lsp-rust
+  :if (executable-find "rustup")
   :after lsp-mode rust-mode lsp-ui
   :config
   (setq lsp-rust-rls-command '("rustup" "run" "nightly" "rls"))
   :hook (rust-mode . lsp-rust-enable))
-
-(use-package markdown-mode
-  :mode (("\\.md\\'"     . markdown-mode)
-         ("README.md\\'" . gfm-mode)))
 
 (use-package macrostep
   :unless noninteractive
@@ -1755,7 +1738,7 @@ _h_: paragraph
     :straight f
     :config
     (global-magit-file-mode))
-  
+
   (with-eval-after-load 'magit-remote
     (magit-define-popup-action 'magit-fetch-popup
       ?f 'magit-get-remote #'magit-fetch-from-upstream ?u t)
@@ -1765,15 +1748,14 @@ _h_: paragraph
       ?P 'magit--push-current-to-upstream-desc
       #'magit-push-current-to-upstream ?u t))
   (put 'magit-clean 'dsabled nil)
-  
+
   :hook (magit-mode            . hl-line-mode)
   :hook (magit-status-mode     . (lambda () (my/magit-monitor t)))
   :hook (magit-status-sections . magit-insert-worktrees))
 
 
 (use-package magit-imerge
-  ;; jww (2017-12-10): Need to configure.
-  :disabled t
+  :if (executable-find "git-imerge")
   :after magit)
 
 (use-package magithub
@@ -1782,7 +1764,7 @@ _h_: paragraph
   (use-package magithub-completion
     :straight f
     :commands magithub-completion-enable)
-  
+
   (magithub-feature-autoinject t)
 
   (require 'auth-source-pass)
@@ -1800,41 +1782,18 @@ _h_: paragraph
          ("\\.md\\'"          . markdown-mode)
          ("\\.markdown\\'"    . markdown-mode))
   :init
+  (use-package markdown-preview-mode
+    :if (executable-find "multimarkdown")
+    :config
+    (setq markdown-preview-stylesheets
+          (list (concat "https://github.com/dmarcotte/github-markdown-preview/"
+			                  "blob/master/data/css/github.css"))))
   (setq markdown-command "multimarkdown")
   :hook (markdown-mode . visual-line-mode)
   :hook (markdown-mode . (lambda () (flyspell-mode 1))))
 
-(use-package markdown-preview-mode
-  :after markdown-mode
-  :config
-  (setq markdown-preview-stylesheets
-        (list (concat "https://github.com/dmarcotte/github-markdown-preview/"
-                      "blob/master/data/css/github.css"))))
-
 (use-package math-symbol-lists
   :defer t)
-
-(use-package mc-extras
-  :after multiple-cursors
-  :bind (("<C-m> M-C-f" . mc/mark-next-sexps)
-         ("<C-m> M-C-b" . mc/mark-previous-sexps)
-         ("<C-m> <"     . mc/mark-all-above)
-         ("<C-m> >"     . mc/mark-all-below)
-         ("<C-m> C-d"   . mc/remove-current-cursor)
-         ("<C-m> C-k"   . mc/remove-cursors-at-eol)
-         ("<C-m> M-d"   . mc/remove-duplicated-cursors)
-         ("<C-m> |"     . mc/move-to-column)
-         ("<C-m> ~"     . mc/compare-chars)))
-
-(use-package mc-freeze
-  :straight f
-  :after multiple-cursors
-  :bind ("<C-m> f" . mc/freeze-fake-cursors-dwim))
-
-(use-package mc-rect
-  :straight f
-  :after multiple-cursors
-  :bind ("<C-m> ]" . mc/rect-rectangle-to-multiple-cursors))
 
 (use-package minibuffer
   :straight f
@@ -1849,9 +1808,7 @@ _h_: paragraph
   :hook (minibuffer-exit  . my/minibuffer-exit-hook))
 
 (use-package multiple-cursors
-  :after phi-search selected
   :defer 5
-
   ;; - Sometimes you end up with cursors outside of your view. You can scroll
   ;;   the screen to center on each cursor with `C-v` and `M-v`.
   ;;
@@ -1905,7 +1862,28 @@ _h_: paragraph
   :preface
   (defun reactivate-mark ()
     (interactive)
-    (activate-mark)))
+    (activate-mark))
+
+  :config
+  (use-package mc-extras
+    :after multiple-cursors
+    :bind (("<C-m> M-C-f" . mc/mark-next-sexps)
+           ("<C-m> M-C-b" . mc/mark-previous-sexps)
+           ("<C-m> <"     . mc/mark-all-above)
+           ("<C-m> >"     . mc/mark-all-below)
+           ("<C-m> C-d"   . mc/remove-current-cursor)
+           ("<C-m> C-k"   . mc/remove-cursors-at-eol)
+           ("<C-m> M-d"   . mc/remove-duplicated-cursors)
+           ("<C-m> |"     . mc/move-to-column)
+           ("<C-m> ~"     . mc/compare-chars)))
+
+  (use-package mc-freeze
+    :straight f
+    :bind ("<C-m> f" . mc/freeze-fake-cursors-dwim))
+
+  (use-package mc-rect
+    :straight f
+    :bind ("<C-m> ]" . mc/rect-rectangle-to-multiple-cursors)))
 
 (use-package nxml-mode
   :straight f
@@ -1918,7 +1896,7 @@ _h_: paragraph
     (interactive)
     (save-excursion
       (call-process-region (point-min) (point-max)
-			   "tidy" t t nil
+			                     "tidy" t t nil
                            "-xml" "-i" "-wrap" "0" "-omit" "-q" "-utf8")))
   :init
   (defalias 'xml-mode 'nxml-mode)
@@ -1980,6 +1958,7 @@ _h_: paragraph
 (use-package phi-search
   :defer 5
   :after (multiple-cursors)
+  :config
   (use-package phi-search-mc
     :config
     (phi-search-mc/setup-keys)
@@ -2036,7 +2015,7 @@ _h_: paragraph
 
     (set (make-local-variable 'parens-require-spaces) nil)
     (setq indent-tabs-mode nil))
-  
+
   :hook (python-mode . my/python-mode-hook))
 
 
@@ -2123,6 +2102,25 @@ _h_: paragraph
                (f-file? (buffer-name)))
       (compile (concat "rustc " (buffer-name) " -o " (f-no-ext (buffer-name))))))
   :config
+  (use-package cargo
+    :after rust-mode
+    :config
+    (with-eval-after-load 'hydra
+      ;; Hydra for rust's cargo
+      (defhydra hydra-cargo (:color blue :columns 4)
+        "cargo"
+        ("c"  cargo-process-build         "build")
+        ("tt" cargo-process-test          "test all")
+        ("tf" cargo-process-current-test  "test current function")
+        ("b"  cargo-process-bench         "benchmark all")
+        ("C"  cargo-process-clean         "clean")
+        ("dd" cargo-process-doc           "build documentation")
+        ("do" cargo-process-doc-open      "build and open documentation")
+        ("r"  cargo-process-run           "run")
+        ("y"  cargo-process-clippy        "clippy"))
+      (general-define-key :keymaps 'rust-mode-map :states 'normal "c" #'hydra-cargo/body))
+    :hook (rust-mode . cargo-minor-mode))
+
   (use-package racer
     :disabled
     :if (executable-find "racer")
@@ -2147,7 +2145,7 @@ _h_: paragraph
       (add-hook 'racer-mode-hook #'company-mode))
     :hook (rust-mode  . racer-mode)
     :hook (racer-mode . eldoc-mode))
-  
+
   :hook (rust-mode . my/rust-mode-hook))
 
 (use-package savehist
@@ -2177,6 +2175,7 @@ _h_: paragraph
 
 (use-package server
   :preface
+  (require 'server)
   (defun my/server-enable ()
     "Start an Emacs server process if one is not already running."
     (unless server-process
@@ -2276,7 +2275,7 @@ _h_: paragraph
           (if entry
               (nth 1 entry)
             5)))))
-  
+
   :hook (texinfo-mode . my/texinfo-mode-hook))
 
 (use-package tidy
@@ -2346,6 +2345,8 @@ _h_: paragraph
 
 (use-package visual-regexp
   :unless noninteractive
+  :defer t
+  :unless noninteractive
   :bind (("C-c r"   . vr/replace)
          ("C-c %"   . vr/query-replace)
          ("<C-m> /" . vr/mc-mark)))
@@ -2358,14 +2359,15 @@ _h_: paragraph
          "\\.css\\'")
   :commands web-mode
   :config
-  (progn
-    (setq web-mode-code-indent-offset 2)
-    (setq web-mode-enable-auto-quoting nil)))
+  (setq web-mode-code-indent-offset 2
+        web-mode-enable-auto-quoting nil))
 
 (use-package which-func
+  :unless noninteractive
   :hook (c-mode-common . which-function-mode))
 
 (use-package which-key
+  :unless noninteractive
   :defer 5
   :diminish
   :commands which-key-mode
@@ -2381,8 +2383,8 @@ _h_: paragraph
              whitespace-mode
              whitespace-turn-off)
   :defines  (whitespace-auto-cleanup
-	     whitespace-rescan-timer-time
-	     whitespace-silent)
+	           whitespace-rescan-timer-time
+	           whitespace-silent)
   :preface
   (defun normalize-file ()
     (interactive)
@@ -2473,14 +2475,15 @@ _h_: paragraph
         (shrink-window arg)
       (enlarge-window arg)))
   :config
-  (bind-key "M-s-u"
-            (defhydra hydra-splitter ()
-              "splitter"
-              ("n" my/hydra-move-splitter-left)
-              ("r" my/hydra-move-splitter-down)
-              ("t" my/hydra-move-splitter-up)
-              ("d" my/hydra-move-splitter-right)
-              ("q" nil "quit"))))
+  (with-eval-after-load 'hydra
+    (bind-key "M-s-u"
+              (defhydra hydra-splitter ()
+                "splitter"
+                ("n" my/hydra-move-splitter-left)
+                ("r" my/hydra-move-splitter-down)
+                ("t" my/hydra-move-splitter-up)
+                ("d" my/hydra-move-splitter-right)
+                ("q" nil "quit")))))
 
 (use-package winner
   :unless noninteractive
@@ -2491,6 +2494,7 @@ _h_: paragraph
   (winner-mode 1))
 
 (use-package yaml-mode
+  :defer t
   :mode "\\.yaml\\'")
 
 (use-package yasnippet
@@ -2498,16 +2502,16 @@ _h_: paragraph
   :defer 10
   :diminish yas-minor-mode
   :bind (:map my/yasnippet-map
-	      ("d" . yas-load-directory)
-	      ("i" . yas-insert-snippet)
-	      ("f" . yas-visit-snippet-file)
-	      ("n" . yas-new-snippet)
-	      ("t" . yas-tryout-snippet)
-	      ("l" . yas-describe-tables)
-	      ("g" . yas-global-mode)
-	      ("m" . yas-minor-mode)
-	      ("a" . yas-reload-all)
-	      ("x" . yas-expand))
+	            ("d" . yas-load-directory)
+	            ("i" . yas-insert-snippet)
+	            ("f" . yas-visit-snippet-file)
+	            ("n" . yas-new-snippet)
+	            ("t" . yas-tryout-snippet)
+	            ("l" . yas-describe-tables)
+	            ("g" . yas-global-mode)
+	            ("m" . yas-minor-mode)
+	            ("a" . yas-reload-all)
+	            ("x" . yas-expand))
   :bind (:map yas-keymap
               ("C-i" . yas-next-field-or-maybe-expand))
   :mode ("/\\.emacs\\.d/snippets/" . snippet-mode)
