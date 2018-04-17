@@ -1267,6 +1267,10 @@ _h_: paragraph
         (kill-ring-save (point-min) (1- (point-max)))
         (message (buffer-substring (point-min) (1- (point-max))))))))
 
+(use-package git-gutter-fringe+
+  :config
+  (setq git-gitter-fr+-side 'left-fringe))
+
 (use-package git-link
   :bind ("C-c Y" . git-link)
   :commands (git-link git-link-commit git-link-homepage))
@@ -1804,7 +1808,6 @@ _h_: paragraph
   :bind ("C-c e m" . macrostep-expand))
 
 (use-package magit
-  :straight (:host github :repo "magit/magit")
   :if (executable-find "git")
   :bind (("C-x g" . magit-status)
          ("C-x G" . my/magit-status-with-prefix))
@@ -1855,17 +1858,16 @@ _h_: paragraph
   
   (with-eval-after-load 'magit-remote
     (magit-define-popup-action 'magit-fetch-popup
-      ?f 'magit-get-remote #'magit-fetch-from-upstream ?u t)
+			       ?f 'magit-get-remote #'magit-fetch-from-upstream ?u t)
     (magit-define-popup-action 'magit-pull-popup
-      ?F 'magit-get-upstream-branch #'magit-pull-from-upstream ?u t)
+			       ?F 'magit-get-upstream-branch #'magit-pull-from-upstream ?u t)
     (magit-define-popup-action 'magit-push-popup
-      ?P 'magit--push-current-to-upstream-desc
-      #'magit-push-current-to-upstream ?u t))
+			       ?P 'magit--push-current-to-upstream-desc
+			       #'magit-push-current-to-upstream ?u t))
   (put 'magit-clean 'dsabled nil)
 
   :hook (magit-mode            . hl-line-mode)
-  :hook (magit-status-mode     . (lambda () (my/magit-monitor t)))
-  :hook (magit-status-sections . magit-insert-worktrees))
+  :hook (magit-status-mode     . (lambda () (my/magit-monitor t))))
 
 (use-package magithub
   :after magit
@@ -2415,9 +2417,9 @@ _h_: paragraph
 (use-package treemacs
   :unless noninteractive
   :defer t
-  :bind (([f8]    . treemacs-toggle)
-         ("M-0"   . treemacs-select-window)
-         ("C-c 1" . treemacs-delete-other-windows)
+  :bind (([f8]          . treemacs-toggle)
+         ("M-0"         . treemacs-select-window)
+         ("C-c 1"       . treemacs-delete-other-windows)
          ("C-c t t"     . treemacs-toggle)
          ("C-c t T"     . treemacs)
          ("C-c t B"     . treemacs-bookmark)
@@ -2429,9 +2431,8 @@ _h_: paragraph
     :defer t
     :config
     (setq treemacs-header-function #'treemacs-projectile-create-header)
-    :bind (:map my/treemacs-map
-                ("P"    . treemacs-projectile)
-                ("p"    . treemacs-projectile-toggle)))
+    :bind (("C-c t P"    . treemacs-projectile)
+	   ("C-c t p"    . treemacs-projectile-toggle)))
 
   (setq treemacs-change-root-without-asking nil
         treemacs-collapse-dirs              (if (executable-find "python") 3 0)
@@ -2455,13 +2456,7 @@ _h_: paragraph
         treemacs-width                      35)
 
   (treemacs-follow-mode t)
-  (treemacs-filewatch-mode t)
-  (pcase (cons (not (null (executable-find "git")))
-               (not (null (executable-find "python3"))))
-    t     (treemacs-git-mode 'extended))
-  (`(t . t)
-   (`(t . _)
-    (treemacs-git-mode 'simple))))
+  (treemacs-filewatch-mode t))
 
 (use-package visual-fill-column
   :unless noninteractive
