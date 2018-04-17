@@ -64,7 +64,7 @@
 (eval-and-compile
   (defconst user-data-directory (expand-file-name "data" user-emacs-directory)
     "Directory for data files.")
-  
+
   (defconst user-document-directory (expand-file-name "~/Documents")
     "Directory for user documents.")
 
@@ -74,6 +74,12 @@
   (defconst user-bib-directory (expand-file-name "bib" user-document-directory)
     "Directory for user bibliography data.")
 
+  ;; Create any missing directories
+  (dolist (dir (list user-data-directory user-document-directory user-org-directory user-bib-directory))
+    (unless (file-exists-p dir)
+      (message "Creating directory %s..." dir)
+      (make-directory dir)))
+  
   (load (expand-file-name "settings" user-emacs-directory))
   
   (setq make-backup-files nil
@@ -85,6 +91,19 @@
         css-indent-offset 2
         load-prefer-newer t
 	      auto-window-vscroll nil)
+  
+  ;; nice scrolling
+  (setq scroll-margin 0
+        scroll-conservatively 100000
+        scroll-preserve-screen-position 1)
+
+  ;; revert buffers automatically when underlying files are changed externally
+  (global-auto-revert-mode t)
+
+  (prefer-coding-system 'utf-8)
+  (set-default-coding-systems 'utf-8)
+  (set-terminal-coding-system 'utf-8)
+  (set-keyboard-coding-system 'utf-8)
   
   (defalias 'yes-or-no-p #'y-or-n-p)
   (setq confirm-kill-emacs #'y-or-n-p))
@@ -1038,6 +1057,7 @@ _h_: paragraph
                 ("s" Er/mark-symbol)))))
 
 (use-package eyebrowse
+  :defer t
   :bind-keymap ("C-\\" . eyebrowse-mode-map)
   :bind (:map eyebrowse-mode-map
               ("C-\\ C-\\" . eyebrowse-last-window-config))
@@ -1050,9 +1070,11 @@ _h_: paragraph
   :commands (fancy-narrow-to-region fancy-widen))
 
 (use-package ffap
+  :defer t
   :bind ("C-c v" . ffap))
 
-(use-package flx)
+(use-package flx
+  :defer t)
 
 (use-package flycheck
   :defer t
@@ -1076,7 +1098,10 @@ _h_: paragraph
     :after flycheck
     :hook (flycheck-mode . flycheck-popup-tip-mode))
 
+  (setq-default flycheck-disabled-checkers '(c/c++-clang c/c++-gcc flycheck-rtags))
+  (setq flycheck-emacs-lisp-load-path 'inherit)
   (defalias 'show-error-at-point-soon 'flycheck-show-error-at-point)
+  
   ;; (setq-default flycheck-display-errors-delay 0.5)
   ;; https://github.com/flycheck/flycheck/issues/1129#issuecomment-319600923
   (advice-add 'flycheck-eslint-config-exists-p :override (lambda() t)))
@@ -1407,7 +1432,9 @@ _h_: paragraph
   :hook (haskell-mode . my/haskell-mode-hook))
 
 (use-package highlight-sexp
+  :disabled
   :defer t
+  :diminish highlight-sexp-mode
   :hook (emacs-lisp-mode . highlight-sexp-mode)
   :hook (lisp-mode       . highlight-sexp-mode))
 
@@ -1608,14 +1635,6 @@ _h_: paragraph
   (ivy-set-occur 'ivy-switch-buffer 'ivy-switch-buffer-occur)
   (with-eval-after-load 'flx
     (setq ivy-re-builders-alist '((t . ivy--regex-fuzzy)))))
-
-(use-package flycheck
-  :defer 2
-  :commands (flycheck-mode)
-  :config
-  (global-flycheck-mode)
-  (setq-default flycheck-disabled-checkers '(c/c++-clang c/c++-gcc flycheck-rtags))
-  (setq flycheck-emacs-lisp-load-path 'inherit))
 
 (use-package json-mode
   :mode "\\.json\\'"
@@ -2040,6 +2059,11 @@ _h_: paragraph
            (if (= ?/ (aref dired-directory last-idx))
                (substring dired-directory 0 last-idx)
              dired-directory)))))
+  :init
+  (setq recentf-save-file (expand-file-name "recentf" user-data-directory)
+        recentf-max-saved-items 500
+        recentf-max-menu-items 15
+        recentf-auto-cleanup 'never)
   :hook (dired-mode . recentf-add-dired-directory)
   :config
   (recentf-mode 1))
@@ -2150,11 +2174,17 @@ _h_: paragraph
 
 (use-package savehist
   :unless noninteractive
+  :init
+  (setq savehist-additional-variaables '(search-ring regexp-search-ring)
+        savehist-autosave-interval 60
+        savehist-file (expand-file-name "savehist" user-data-directory))
   :config
   (savehist-mode 1))
 
 (use-package saveplace
   :unless noninteractive
+  :init
+  (setq save-place-file (expand-file-name "saveplace" user-data-directory))
   :config
   (save-place-mode 1))
 
@@ -2215,6 +2245,7 @@ _h_: paragraph
   :bind ("C-c C-'" . string-edit-at-point))
 
 (use-package super-save
+  :diminish super-save-mode
   :config
   (super-save-mode 1)
   (setq super-save-auto-save-when-idle t))
