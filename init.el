@@ -1,5 +1,12 @@
 ;;; init.el -- user customization for Emacs       -*- lexical-binding: t -*-
+
 ;;; Commentary:
+;;;
+;;; This is my emacs .init file. It uses straight.el and use-package forall
+;;; package maangement. A significant portion of the configuration was cribbed
+;;; from John Wiegley's configuration, with random bits thrown in from various
+;;; places around the web.
+
 ;;; Code:
 
 (defconst emacs-start-time (current-time))
@@ -28,14 +35,14 @@
 (eval-and-compile
   ;; Bootstrap straight.el
   (let ((bootstrap-file (concat user-emacs-directory "straight/repos/straight.el/bootstrap.el"))
-	(bootstrap-version 3))
+        (bootstrap-version 3))
     (unless (file-exists-p bootstrap-file)
       (with-current-buffer
-	  (url-retrieve-synchronously
-	   "https://raw.githubusercontent.com/raxod502/straight.el/develop/install.el"
-	   'silent 'inhibit-cookies)
-	(goto-char (point-max))
-	(eval-print-last-sexp)))
+          (url-retrieve-synchronously
+           "https://raw.githubusercontent.com/raxod502/straight.el/develop/install.el"
+           'silent 'inhibit-cookies)
+        (goto-char (point-max))
+        (eval-print-last-sexp)))
     (load bootstrap-file nil 'nomessage))
   
   ;; Use straight.el to load missing packages for `use-package` by default.
@@ -90,15 +97,20 @@
         tab-width 2
         css-indent-offset 2
         load-prefer-newer t
-	      auto-window-vscroll nil)
+	      auto-window-vscroll nil
+        mouse-drag-copy-region t
+        echo-keystrokes 0.1)
   
   ;; nice scrolling
   (setq scroll-margin 0
         scroll-conservatively 100000
         scroll-preserve-screen-position 1)
 
-  ;; revert buffers automatically when underlying files are changed externally
+  ;; Revert buffers automatically when underlying files are changed externally
   (global-auto-revert-mode t)
+  
+  ;; Do not display message about reverted files
+  (setq auto-rever-verbose nil)
 
   (prefer-coding-system 'utf-8)
   (set-default-coding-systems 'utf-8)
@@ -183,7 +195,7 @@
 
   (setq load-path
         (append (delete-dups load-path)
-		'("~/.emacs.d/lisp")))
+                '("~/.emacs.d/lisp")))
 
   (defun filter (f args)
     (let (result)
@@ -192,32 +204,10 @@
           (setq result (cons arg result))))
       (nreverse result)))
 
-  (defun my/smarter-move-beginning-of-line (arg)
-    "Move point back to indentation of beginning of line.
-
-  Move point to the first non-whitespace character on this line.
-  If point is already there, move to the beginning of the line.
-  Effectively toggle between the first non-whitespace character and
-  the beginning of the line.
-
-  If ARG is not nil or 1, move forward ARG - 1 lines first.  If
-  point reaches the beginning or end of the buffer, stop there."
-    (interactive "^p")
-    (setq arg (or arg 1))
-
-    ;; Move lines first
-    (when (/= arg 1)
-      (let ((line-move-visual nil))
-        (forward-line (1- arg))))
-    
-    (let ((orig-point (point)))
-      (back-to-indentation)
-      (when (= orig-point (point))
-        (move-beginning-of-line 1))))
-
-  ;; remap C-a to `smarter-move-beginning-of-line'
-  (bind-key [remap move-beginning-of-line]
-            #'my/smarter-move-beginning-of-line)
+  (defun my/indent-buffer ()
+    "Indent current buffer according to major mode."
+    (interactive)
+    (indent-region (point-min) (point-max)))
 
   (defun my/sort-sexps-in-region (beg end)
     "Can be handy for sorting out duplicates.
@@ -249,7 +239,7 @@
     "Eval region from BEG to END if active, otherwise the last sexp."
     (interactive "P")
     (if (and (mark) (use-region-p))
-	(eval-region (min (point) (mark)) (max (point) (mark)))
+        (eval-region (min (point) (mark)) (max (point) (mark)))
       (pp-eval-last-sexp prefix)))
 
   (defun projectile-add-magit-repo-dirs-to-known-projects ()
@@ -257,10 +247,16 @@
     (interactive)
     (--each (mapcar 'cdr (magit-list-repos magit-repo-dirs))
       (projectile-add-known-project (file-name-as-directory
-				     (file-truename it)))))
+                                     (file-truename it)))))
 
-  (bind-key "C-x C-e" 'my/eval-last-sexp-or-region emacs-lisp-mode-map)
+  (defun switch-to-previous-buffer ()
+    "Switch to most recent buffer. Repeated calls toggle back and forth between the most recent two buffers."
+    (interactive)
+    (switch-to-buffer (other-buffer (current-buffer) 1)))
 
+  ;; set key binding
+  (bind-key "C-`"     #'switch-to-previous-buffer)
+  (bind-key "C-x C-e" #'my/eval-last-sexp-or-region emacs-lisp-mode-map)
   (bind-key "M-;"     #'comment-dwim-line)
   (bind-key "C-c n"   #'narrow-or-widen-dwim)
   (bind-key "C-x C-b" #'ibuffer)
@@ -340,16 +336,18 @@
   :defer t
   :if (display-graphic-p))
 
-(use-package smart-mode-line
+(use-package spaceline
   :unless noninteractive
+  :demand t
   :init
-  (setq sml/theme 'dark)
+  (setq powerline-default-separator 'arrow-fade)
   :config
-  (sml/setup))
+  (require 'spaceline-config)
+  (spaceline-emacs-theme))
 
 (setq default-frame-alist '((height . 58)
-			                      (width  . 136)
-			                      (font   . "Fantasque Sans Mono-12")))
+                            (width  . 136)
+                            (font   . "Fantasque Sans Mono-12")))
 
 ;;;
 ;;; Packages
@@ -359,15 +357,19 @@
   :straight f
   :defer 5
   :diminish
+  :init
+  (setq abbrev-file-name (expand-file-name "abbrev" user-data-directory)
+        save-abbrevs 'silently)
+  (setq-default abbrev-mode t)
+  :config
+  (if (file-exists-p abbrev-file-name)
+      (quietly-read-abbrev-file))
   :hook
   ((text-mode prog-mode erc-mode LaTeX-mode) . abbrev-mode)
   (expand-load
    . (lambda ()
        (add-hook 'expand-expand-hook 'indent-according-to-mode)
-       (add-hook 'expand-jump-hook 'indent-according-to-mode)))
-  :config
-  (if (file-exists-p abbrev-file-name)
-      (quietly-read-abbrev-file)))
+       (add-hook 'expand-jump-hook 'indent-according-to-mode))))
 
 (use-package ag
   :if (executable-find "ag")
@@ -379,10 +381,24 @@
   :hook (emacs-lisp-mode . aggressive-indent-mode))
 
 (use-package align
-  :bind (("M-["   . align-code)
-         ("C-c [" . align-regexp))
+  :bind (("M-["       . align-code)
+         ("C-c ["     . align-regexp)
+         ("C-c ."     . my/align-dot)
+         ("C-c <SPC>" . my/align-whitespace))
   :commands align
   :preface
+  (defun my/align-whitespace (start end)
+    "Align columns by whitespace."
+    (interactive "r")
+    (align-regexp start end
+                  "\\(\\s-*\\)\\s-" 1 0 t))
+
+  (defun my/align-dot (start end)
+    "Align columns by period."
+    (interactive "r")
+    (align-regexp start end
+                  "\\(\\s-*\\)\\." 1 1 t))
+
   (defun align-code (beg end &optional arg)
     (interactive "rP")
     (if (null arg)
@@ -442,20 +458,34 @@
        (lambda (file) (file-name-sans-extension (file-relative-name file store-dir)))
        (directory-files-recursively store-dir "\.gpg$")))))
 
+(use-package anzu
+  :commands (global-anzu-mode)
+  :bind (("M-%"   . anzu-query-replace)
+         ("M-S-%" . anzu-query-replace-regexp))
+  :config
+  (global-anzu-mode))
+
 (use-package auto-compile
+  :demand t
   :init
   (setq auto-compile-display-buffer nil
         auto-compile-mode-line-count t)
   :config
   (auto-compile-on-load-mode)
-  (auto-compile-on-save-mode))
+  (auto-compile-on-save-mode)
+  (setq auto-compile-display-buffer               nil)
+  (setq auto-compile-mode-line-counter            t)
+  (setq auto-compile-source-recreate-deletes-dest t)
+  (setq auto-compile-toggle-deletes-nonlib-dest   t)
+  (setq auto-compile-update-autoloads             t)
+  (add-hook 'auto-compile-inhibit-compile-hook
+            #'auto-compile-inhibit-compile-detached-git-head))
 
 (use-package auto-yasnippet
   :after yasnippet
-  :bind (:map my/yasnippet-map
-              ("a" . aya-create)
-              ("e" . aya-expand)
-              ("o" . aya-open-line)))
+  :bind (("C-c y a" . aya-create)
+         ("C-c y e" . aya-expand)
+         ("C-c y o" . aya-open-line)))
 
 (use-package avy
   :bind* ("C-." . avy-goto-char-timer)
@@ -484,8 +514,8 @@
   :hook (after-save        . bm-buffer-save)
   :hook (vc-before-checkin . bm-buffer-save)
   :hook (kill-emacs        . (lambda ()
-			       (bm-buffer-save-all)
-			       (bm-repository-save))))
+                               (bm-buffer-save-all)
+                               (bm-repository-save))))
 
 (use-package bookmark+
   :after bookmark
@@ -496,17 +526,20 @@
   :defer 15)
 
 (use-package counsel
-  :bind (("M-x"		. counsel-M-x)
+  :bind (("M-x"		  . counsel-M-x)
          ("C-x C-f"	. counsel-find-file)
-         ("C-h f"	. counsel-describe-function)
-         ("C-h v"	. counsel-describe-variable)
-         ("C-h i"	. counsel-info-lookup-symbol)
-         ("C-h u"	. counsel-unicode-char)
-         ("C-c k"	. counsel-rg)
-         ("C-x l"	. counsel-locate)
-         ("C-c g"	. counsel-git-grep)
+         ("C-h f"	  . counsel-describe-function)
+         ("C-h v"	  . counsel-describe-variable)
+         ("C-h i"	  . counsel-info-lookup-symbol)
+         ("C-h u"	  . counsel-unicode-char)
+         ("C-c k"	  . counsel-rg)
+         ("C-x l"	  . counsel-locate)
+         ("C-c g"	  . counsel-git-grep)
          ("C-c h i"	. counsel-imenu)
-         ("C-x p"	. counsel-list-processes))
+         ("C-x p"	  . counsel-list-processes)
+         ("M-y"     . counsel-yank-pop))
+  :bind (:map ivy-minibuffer-map
+              ("M-y" . ivy-next-line))
   :config
   (ivy-set-actions
    'counsel-find-file
@@ -600,13 +633,16 @@
   (push 'company-elisp company-backends))
 
 (use-package company-math
-  :after company
+  :after company math-symbol-lists
   :defer t)
 
 (use-package company-quickhelp
   :after company
   :bind (:map company-active-map
               ("C-c ?" . company-quickhelp-manual-begin)))
+
+(use-package company-restclient
+  :after (company restclient))
 
 (use-package compile
   :no-require
@@ -635,9 +671,6 @@
 
   :hook (compilation-filter . my/compilation-ansi-color-process-output))
 
-(use-package company-restclient
-  :after (company restclient))
-
 (use-package counsel
   :after ivy
   :demand t
@@ -656,17 +689,13 @@
          ("C-h f"   . counsel-describe-function)
          ("C-x r b" . counsel-bookmark)
          ("M-x"     . counsel-M-x)
-         ;; ("M-y"     . counsel-yank-pop)
-
          ("M-s f"   . counsel-file-jump)
          ("M-s g"   . counsel-rg)
          ("M-s j"   . counsel-dired-jump))
-  :init
-  (bind-key "M-r" #'counsel-minibuffer-history minibuffer-local-map)
-  :config
-  (add-to-list 'ivy-sort-matches-functions-alist
-               '(counsel-find-file . ivy--sort-files-by-date))
+  :bind (:map minibuffer-local-map
+              ("M-r" . counsel-minibuffer-history))
 
+  :preface
   (defun counsel-recoll-function (string)
     "Run recoll for STRING."
     (if (< (length string) 3)
@@ -694,31 +723,49 @@
                             (unless (string-match "pdf$" x)
                               (swiper ivy-text)))))
               :unwind #'counsel-delete-process
-              :caller 'counsel-recoll)))
+              :caller 'counsel-recoll))
 
-(use-package counsel-dash
-  :after counsel
-  :bind ("C-c C-h" . counsel-dash))
-
-(use-package counsel-osx-app
-  :if (eq system-type 'darwin)
-  :after counsel
-  :bind* ("S-M-SPC" . counsel-osx-app)
-  :commands counsel-osx-app
   :config
-  (setq counsel-osx-app-location
-        (list "/Applications"
-              "/Applications/Misc"
-              "/Applications/Utilities"
-              (expand-file-name "~/Applications")
-              "/Applications/Xcode.app/Contents/Applications")))
+  (add-to-list 'ivy-sort-matches-functions-alist
+               '(counsel-find-file . ivy--sort-files-by-date))
 
-(use-package counsel-projectile
-  :after (counsel projectile)
-  :config
-  (counsel-projectile-mode)
-  (define-key counsel-projectile-mode-map [remap projectile-ag]
-    #'counsel-projectile-rg))
+  (use-package counsel-dash
+    :after counsel
+    :requires dash
+    :bind ("C-c C-h" . counsel-dash))
+
+  (use-package counsel-osx-app
+    :if (eq system-type 'darwin)
+    :after counsel
+    :bind* ("S-M-SPC" . counsel-osx-app)
+    :commands counsel-osx-app
+    :config
+    (setq counsel-osx-app-location
+          (list "/Applications"
+                "/Applications/Misc"
+                "/Applications/Utilities"
+                (expand-file-name "~/Applications")
+                "/Applications/Xcode.app/Contents/Applications")))
+
+  (use-package counsel-projectile
+    :after counsel
+    :requires projectile
+    :bind (:map counsel-projectile-mode-map
+                ([remap projectile-ag] . counsel-projectile-rg))
+    :config
+    (counsel-projectile-mode)))
+
+(use-package crux
+  ;; https://github.com/bbatsov/crux
+  :bind (([remap move-beginning-of-line] . crux-move-beginning-of-line)
+         ("C-k"                          . crux-smart-kill-line)
+         ("M-o"                          . crux-smart-open-line)
+         ("C-c f"                        . crux-recentf-find-file)
+         ("C-c D"                        . crux-delete-file-and-buffer)
+         ("C-c R"                        . crux-rename-file-and-buffer)
+         ("C-c I"                        . crux-find-user-init-file)
+         ("C-c S"                        . crux-find-shell-int-file)
+         ([remap kill-whole-line]        . crux-kill-whole-line)))
 
 (use-package css-mode
   :defer t
@@ -749,7 +796,7 @@
   :bind (:map dired-mode-map
               ("j"     . dired)
               ("z"     . pop-window-configuration)
-              ("e"     . ora-ediff-files)
+              ("e"     . my/ediff-files)
               ("l"     . dired-up-directory)
               ("q"     . dired-up-directory)
               ("Y"     . ora-dired-rsync)
@@ -810,7 +857,7 @@
       (async-shell-command tmtxt/rsync-command "*rsync*")
       (other-window 1)))
 
-  (defun ora-ediff-files ()
+  (defun my/ediff-files ()
     (interactive)
     (let ((files (dired-get-marked-files))
           (wnd (current-window-configuration)))
@@ -872,9 +919,9 @@
                "\\)")))
         (funcall dired-omit-regexp-orig))))
   :init
-  (setq dired-dwim-target t
-        dired-recursive-deletes t
-        dired-use-ls-dired nil
+  (setq dired-dwim-target         t
+        dired-recursive-deletes   t
+        dired-use-ls-dired        nil
         delete-by-moving-to-trash t)
   :config
   (use-package dired-toggle
@@ -886,10 +933,15 @@
       (visual-line-mode 1)
       (setq-local visual-line-fringe-indicators '(nil right-curly-arrow))
       (setq-local word-wrap nil))
+    
     :hook (dired-toggle-mode . my/dired-toggle-mode-hook))
+
+  (use-package dired-x
+    :straight f)
   
   (defvar dired-omit-regexp-orig (symbol-function 'dired-omit-regexp))
-  :hook (dired-mode . dired-hide-details-mode))
+  :hook (dired-mode . dired-hide-details-mode)
+  :hook (dired-mode . auto-revert-mode))
 
 (use-package docker
   :defer 15
@@ -919,9 +971,32 @@
           ("M-M"   . org-inline-note)
           ("C-c a" . org-agenda)
           ("C-c S" . org-store-link)
-          ("C-c l" . org-insert-link))
+          ("C-c l" . org-insert-link)
+          ("C-9"   . my/org-capture-todo))
+  
+
+  :preface
+  ;; remove comments from org document for use with export hook
+  ;; https://emacs.stackexchange.com/questions/22574/orgmode-export-how-to-prevent-a-new-line-for-comment-lines
+  (defun my/delete-org-comments (backend)
+    "Remove comments from org document.
+  For use with export hook."
+    (loop for comment in (reverse (org-element-map (org-element-parse-buffer)
+                                                   'comment 'identity))
+          do
+          (setf (buffer-substring (org-element-property :begin comment)
+                                  (org-element-property :end comment))
+                "")))
+
+  (defun my/org-capture-todo ()
+    "Capture a TODO action in `org-mode`."
+    (interactive)
+    (org-capture nil "t"))
+
   :config
-  (setq initial-buffer-choice org-default-notes-files))
+  (setq initial-buffer-choice org-default-notes-files)
+  (setq org-highlight-latex-and-related '(latex))
+  :hook (org-export-before-processing . my/delete-org-comments))
 
 (use-package ediff
   :bind (("C-c = b" . ediff-buffers)
@@ -1015,6 +1090,11 @@
     (set-syntax-table emacs-lisp-mode-syntax-table)
     (paredit-mode)))
 
+(use-package exec-path-from-shell
+  :if (eq system-type 'darwin)
+  :config
+  (exec-path-from-shell-initialize))
+
 (use-package expand-region
   :commands (er/expand-region
              er/mark-inside-pairs
@@ -1058,11 +1138,13 @@ _h_: paragraph
 
 (use-package eyebrowse
   :defer t
+  :diminish eyebrowse-mode
   :bind-keymap ("C-\\" . eyebrowse-mode-map)
   :bind (:map eyebrowse-mode-map
               ("C-\\ C-\\" . eyebrowse-last-window-config))
   :config
-  (eyebrowse-mode))
+  (eyebrowse-mode)
+  (setq eyebrowse-new-workspace t))
 
 (use-package fancy-narrow
   :bind (("C-c N N" . fancy-narrow-to-region)
@@ -1155,7 +1237,7 @@ _h_: paragraph
     :after flyspell-mode ivy
     :defer t
     :bind (:map flyspell-mode-map
-	              ("C-;" . flyspell-correct-word-generic))
+		("C-;" . flyspell-correct-word-generic))
     :init
     ;; set ivy as correcting interface
     (setq flyspell-correct-interface 'flyspell-correct-ivy)))
@@ -1185,11 +1267,6 @@ _h_: paragraph
         (kill-ring-save (point-min) (1- (point-max)))
         (message (buffer-substring (point-min) (1- (point-max))))))))
 
-(use-package git-annex
-  :load-path "lisp/git-annex"
-  :after dired
-  :defer t)
-
 (use-package git-link
   :bind ("C-c Y" . git-link)
   :commands (git-link git-link-commit git-link-homepage))
@@ -1202,9 +1279,11 @@ _h_: paragraph
   :commands git-undo)
 
 (use-package gitattributes-mode
+  :if (executable-find "git")
   :defer 5)
 
 (use-package gitconfig-mode
+  :if (executable-find "git")
   :defer 5)
 
 (use-package github-pullrequest
@@ -1212,9 +1291,11 @@ _h_: paragraph
              github-pullrequest-checkout))
 
 (use-package gitignore-mode
+  :if (executable-find "git")
   :defer 5)
 
 (use-package gitpatch
+  :if (executable-find "git")
   :commands gitpatch-mail)
 
 (use-package google-this
@@ -1223,8 +1304,9 @@ _h_: paragraph
   :bind (:map google-this-mode-map
               ("/" . google-this-search)))
 
-(use-package goto-last-change
-  :bind ("C-x C-/" . goto-last-change))
+(use-package goto-chg
+  :bind (("C-c b ," . goto-last-change)
+         ("C-c b ." . goto-last-change-reverse)))
 
 (use-package graphviz-dot-mode
   :mode "\\.dot\\'")
@@ -1252,7 +1334,7 @@ _h_: paragraph
               ("C-c C-," . haskell-navigate-imports)
               ("C-c C-." . haskell-mode-format-imports)
               ("C-c C-u" . my/haskell-insert-undefined)
-	            ("[f7]"    . haskell-navigate-imports)
+              ("[f7]"    . haskell-navigate-imports)
               ("M-s")
               ("M-t"))
   :preface
@@ -1391,14 +1473,14 @@ _h_: paragraph
     :after (company haskell-cabal))
 
   (use-package ghc
-    :disabled t
+    :disabled
     :load-path
     (lambda ()
       (cl-mapcan
        #'(lambda (lib) (directory-files lib t "^ghc-"))
        (cl-mapcan
-	      #'(lambda (lib) (directory-files lib t "^elpa$"))
-	      (filter (apply-partially #'string-match "-emacs-ghc-") load-path))))
+        #'(lambda (lib) (directory-files lib t "^elpa$"))
+        (filter (apply-partially #'string-match "-emacs-ghc-") load-path))))
     :commands ghc-init
     :config
     (setenv "cabal_helper_libexecdir"
@@ -1411,7 +1493,7 @@ _h_: paragraph
     :straight f
     :load-path "lisp/haskell-config"
     :bind (:map haskell-mode-map
-		            ("C-c M-q" . haskell-edit-reformat)))
+                ("C-c M-q" . haskell-edit-reformat)))
 
   (use-package hindent-mode
     :straight (:host github :repo "commercialhaskell/hindent")
@@ -1430,13 +1512,6 @@ _h_: paragraph
                 (haskell-left-arrows . "\\(\\s-+\\)\\(<-\\|←\\)\\s-+")))))
 
   :hook (haskell-mode . my/haskell-mode-hook))
-
-(use-package highlight-sexp
-  :disabled
-  :defer t
-  :diminish highlight-sexp-mode
-  :hook (emacs-lisp-mode . highlight-sexp-mode)
-  :hook (lisp-mode       . highlight-sexp-mode))
 
 (use-package hydra
   :defer t
@@ -1552,18 +1627,16 @@ _h_: paragraph
   :bind (("C-x b" . ivy-switch-buffer)
          ("C-x B" . ivy-switch-buffer-other-window)
          ("M-H"   . ivy-resume))
-
   :bind (:map ivy-minibuffer-map
               ("<tab>" . ivy-alt-done)
               ("SPC"   . ivy-alt-done-or-space)
               ("C-d"   . ivy-done-or-delete-char)
               ("C-i"   . ivy-partial-or-done)
               ("C-r"   . ivy-previous-line-or-history)
-              ("M-r"   . ivy-reverse-i-search))
-
+              ("M-r"   . ivy-reverse-i-search)
+              ("M-j"   . my/ivy-yank-whole-word))
   :bind (:map ivy-switch-buffer-map
               ("C-k" . ivy-switch-buffer-kill))
-
   :custom
   (ivy-dynamic-exhibit-delay-ms 200)
   (ivy-height 10)
@@ -1574,7 +1647,6 @@ _h_: paragraph
   (ivy-wrap t)
   (ivy-use-selectable-promnpt t)
   (ivy-count-format "")
-
   :preface
   (defun ivy-done-or-delete-char ()
     (interactive)
@@ -1607,6 +1679,23 @@ _h_: paragraph
   (defun my/ivy-completing-read (&rest args)
     (let ((ivy-sort-functions-alist '((t . nil))))
       (apply 'ivy-completing-read args)))
+
+  ;; version of ivy-yank-word to yank from start of word
+  (defun my/ivy-yank-whole-word ()
+    "Pull next word from buffer into search string."
+    (interactive)
+    (let (amend)
+      (with-ivy-window
+        ;;move to last word boundary
+        (re-search-backward "\\b")
+        (let ((pt (point))
+              (le (line-end-position)))
+          (forward-word 1)
+          (if (> (point) le)
+              (goto-char pt)
+            (setq amend (buffer-substring-no-properties pt (point))))))
+      (when amend
+        (insert (replace-regexp-in-string "  +" " " amend)))))
 
   :config
   (use-package ivy-bibtex
@@ -1715,6 +1804,8 @@ _h_: paragraph
   :bind ("C-c e m" . macrostep-expand))
 
 (use-package magit
+  :straight (:host github :repo "magit/magit")
+  :if (executable-find "git")
   :bind (("C-x g" . magit-status)
          ("C-x G" . my/magit-status-with-prefix))
   :bind (:map magit-mode-map
@@ -1758,6 +1849,10 @@ _h_: paragraph
     :config
     (global-magit-file-mode))
 
+  (use-package magit-imerge
+    :if (executable-find "git-imerge")
+    :after magit)
+  
   (with-eval-after-load 'magit-remote
     (magit-define-popup-action 'magit-fetch-popup
       ?f 'magit-get-remote #'magit-fetch-from-upstream ?u t)
@@ -1771,11 +1866,6 @@ _h_: paragraph
   :hook (magit-mode            . hl-line-mode)
   :hook (magit-status-mode     . (lambda () (my/magit-monitor t)))
   :hook (magit-status-sections . magit-insert-worktrees))
-
-
-(use-package magit-imerge
-  :if (executable-find "git-imerge")
-  :after magit)
 
 (use-package magithub
   :after magit
@@ -1877,12 +1967,6 @@ _h_: paragraph
               ("Y"   . mc/mark-previous-symbol-like-this)
               ("w"   . mc/mark-next-word-like-this)
               ("W"   . mc/mark-previous-word-like-this))
-
-  :preface
-  (defun reactivate-mark ()
-    (interactive)
-    (activate-mark))
-
   :config
   (use-package mc-extras
     :after multiple-cursors
@@ -1935,16 +2019,15 @@ _h_: paragraph
 (use-package paredit
   :diminish
   :hook ((lisp-mode emacs-lisp-mode) . paredit-mode)
+  :bind (("C-c ( n"    . paredit-add-to-next-list)
+         ("C-c ( p"    . paredit-add-to-previous-list)
+         ("C-c ( j"    . paredit-join-with-next-list)
+         ("C-c ( J"    . paredit-join-with-previous-list))
   :bind (:map paredit-mode-map
               ("[")
               ("M-k"   . paredit-raise-sexp)
               ("M-I"   . paredit-splice-sexp)
               ("C-M-l" . paredit-recentre-on-sexp))
-  :bind (:map my/paredit-map
-              ("n"     . paredit-add-to-next-list)
-              ("p"     . paredit-add-to-previous-list)
-              ("j"     . paredit-join-with-next-list)
-              ("J"     . paredit-join-with-previous-list))
   :bind (:map lisp-mode-map
               ("<return>" . paredit-newline))
   :bind (:map emacs-lisp-mode-map
@@ -2106,7 +2189,6 @@ _h_: paragraph
   :defer t
   :after company
   :mode "\\.rs\\'"
-  :bind (("C-c <tab>" . rust-format-buffer))
   :preface
   (defun my/rust-mode-hook ()
     "My Rust-mode configuration."
@@ -2117,7 +2199,9 @@ _h_: paragraph
               ("!=" . (?· (Br . Bl) ?≠))
               ("=>" . (?· (Br . Bl) ?➡))
               ("->" . (?· (Br . Bl) ?→)))
-      (push it prettify-symbols-alist)))
+      (push it prettify-symbols-alist))
+    ;; (local-set-key (kbd "C-c <tab>" . #'rust-format-buffer))
+    )
 
   (defun my/compile-single-rust-file ()
     "Compile a single rust file."
@@ -2125,6 +2209,7 @@ _h_: paragraph
     (when (and (f-exists? (buffer-name))
                (f-file? (buffer-name)))
       (compile (concat "rustc " (buffer-name) " -o " (f-no-ext (buffer-name))))))
+  
   :config
   (use-package cargo
     :after rust-mode
@@ -2147,6 +2232,7 @@ _h_: paragraph
 
   (use-package racer
     :disabled
+    :unless (featurep 'lsp-mode)
     :if (executable-find "racer")
     :defines (racer-rust-src-path)
     :config
@@ -2211,6 +2297,14 @@ _h_: paragraph
     (unless server-process
       (server-start)))
   :hook (after-init . my/server-enable))
+
+(use-package shell-pop
+  :if (or (eq system-type 'gnu/linux) (eq system-type 'darwin))
+  :bind (("C-t" . shell-pop))
+  :config
+  (setq shell-pop-shell-type (quote ("ansi-term" "*ansi-term*" (lambda nil (ansi-term shell-pop-term-shell))))
+        shell-pop-term-shell "/bin/zsh"
+        shell-pop--set-shell-type 'shell-pop-shell-type shell-pop-shell-type))
 
 (use-package slime
   :defer t
@@ -2324,12 +2418,11 @@ _h_: paragraph
   :bind (([f8]    . treemacs-toggle)
          ("M-0"   . treemacs-select-window)
          ("C-c 1" . treemacs-delete-other-windows)
-         :map my/treemacs-map
-         ("t"     . treemacs-toggle)
-         ("T"     . treemacs)
-         ("B"     . treemacs-bookmark)
-         ("C-t"   . treemacs-find-file)
-         ("M-t"   . treemacs-find-tag))
+         ("C-c t t"     . treemacs-toggle)
+         ("C-c t T"     . treemacs)
+         ("C-c t B"     . treemacs-bookmark)
+         ("C-c t C-t"   . treemacs-find-file)
+         ("C-c t M-t"   . treemacs-find-tag))
   :config
   (use-package treemacs-projectile
     :after projectile
@@ -2465,13 +2558,6 @@ _h_: paragraph
   :config
   (global-whitespace-cleanup-mode 1))
 
-(use-package whole-line-or-region
-  :unless noninteractive
-  :defer 5
-  :diminish whole-line-or-region-local-mode
-  :config
-  (whole-line-or-region-global-mode 1))
-
 (use-package windmove
   :preface
   (defun my/hydra-move-splitter-left (arg)
@@ -2507,7 +2593,7 @@ _h_: paragraph
       (enlarge-window arg)))
   :config
   (with-eval-after-load 'hydra
-    (bind-key "M-s-u"
+    (bind-key "M-C-u"
               (defhydra hydra-splitter ()
                 "splitter"
                 ("n" my/hydra-move-splitter-left)
@@ -2525,27 +2611,25 @@ _h_: paragraph
   (winner-mode 1))
 
 (use-package yaml-mode
-  :defer t
   :mode "\\.yaml\\'")
 
 (use-package yasnippet
   :after prog-mode
   :defer 10
   :diminish yas-minor-mode
-  :bind (:map my/yasnippet-map
-	            ("d" . yas-load-directory)
-	            ("i" . yas-insert-snippet)
-	            ("f" . yas-visit-snippet-file)
-	            ("n" . yas-new-snippet)
-	            ("t" . yas-tryout-snippet)
-	            ("l" . yas-describe-tables)
-	            ("g" . yas-global-mode)
-	            ("m" . yas-minor-mode)
-	            ("a" . yas-reload-all)
-	            ("x" . yas-expand))
+  :bind (("C-c y a" . yas-reload-all)
+         ("C-c y d" . yas-load-directory)
+         ("C-c y f" . yas-visit-snippet-file)
+         ("C-c y g" . yas-global-mode)
+         ("C-c y i" . yas-insert-snippet)
+         ("C-c y l" . yas-describe-tables)
+         ("C-c y m" . yas-minor-mode)
+         ("C-c y n" . yas-new-snippet)
+         ("C-c y t" . yas-tryout-snippet)
+         ("C-c y x" . yas-expand))
   :bind (:map yas-keymap
               ("C-i" . yas-next-field-or-maybe-expand))
-  :mode ("/\\.emacs\\.d/snippets/" . snippet-mode)
+  :mode ("/\\.emacs\\.d/snippets" . snippet-mode)
   :config
   (yas-load-directory (expand-file-name "snippets" user-emacs-directory))
   (yas-global-mode 1))
