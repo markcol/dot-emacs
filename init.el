@@ -1268,18 +1268,22 @@ _h_: paragraph
         (message (buffer-substring (point-min) (1- (point-max))))))))
 
 (use-package git-gutter-fringe+
+  :if (executable-find "git")
   :diminish git-gutter-fringe+-mode
   :config
   (global-git-gutter+-mode))
 
 (use-package git-link
+  :if (executable-find "git")
   :bind ("C-c Y" . git-link)
   :commands (git-link git-link-commit git-link-homepage))
 
 (use-package git-timemachine
+  :if (executable-find "git")
   :commands git-timemachine)
 
 (use-package git-undo
+  :if (executable-find "git")
   :load-path "lisp/git-undo"
   :commands git-undo)
 
@@ -1292,6 +1296,7 @@ _h_: paragraph
   :defer 5)
 
 (use-package github-pullrequest
+  :if (executable-find "git")
   :commands (github-pullrequest-new
              github-pullrequest-checkout))
 
@@ -2330,13 +2335,8 @@ _h_: paragraph
   :config
   (smart-newline-mode))
 
-(use-package smart-region
-  :disabled t
-  :bind ("S-SPC" . smart-region))
-
 (use-package sql-indent
-  :defer t
-  :commands sqlind-minor-mode)
+  :mode ("\\.sql\\'"))
 
 (use-package string-edit
   :bind ("C-c C-'" . string-edit-at-point))
@@ -2364,9 +2364,9 @@ _h_: paragraph
     (swiper-mc)))
 
 (use-package systemd
-  :unless noninteractive
-  :after company
+  :if (not (eq system-type 'windows-nt))
   :defer t
+  :after company
   :defines (systemd-use-company-p)
   :init
   (setq systemd-use-company-p t))
