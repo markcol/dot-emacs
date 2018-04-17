@@ -1268,8 +1268,9 @@ _h_: paragraph
         (message (buffer-substring (point-min) (1- (point-max))))))))
 
 (use-package git-gutter-fringe+
+  :diminish git-gutter-fringe+-mode
   :config
-  (setq git-gitter-fr+-side 'left-fringe))
+  (global-git-gutter+-mode))
 
 (use-package git-link
   :bind ("C-c Y" . git-link)
