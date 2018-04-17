@@ -65,9 +65,16 @@
     "Directory for user bibliography data.")
 
   (load (expand-file-name "settings" user-emacs-directory))
-  (setq inhibit-splash-screen t)
+  
   (setq make-backup-files nil
-	auto-save-default nil))
+        auto-save-default nil
+        inhibit-splash-screen t
+        confirm-kill-emacs #'yes-or-no-p
+        visible-bell nil
+        indent-tabs-mode nil
+        tab-width 2
+        css-indent-offset 2
+        load-prefer-newer t))
 
 ;;;
 ;;; Functions
@@ -407,12 +414,20 @@
        (lambda (file) (file-name-sans-extension (file-relative-name file store-dir)))
        (directory-files-recursively store-dir "\.gpg$")))))
 
+(use-package auto-compile
+  :init
+  (setq auto-compile-display-buffer nil
+        auto-compile-mode-line-count t)
+  :config
+  (auto-compile-on-load-mode)
+  (auto-compile-on-save-mode))
+
 (use-package auto-yasnippet
   :after yasnippet
   :bind (:map my/yasnippet-map
-	      ("a" . aya-create)
-	      ("e" . aya-expand)
-	      ("o" . aya-open-line)))
+              ("a" . aya-create)
+              ("e" . aya-expand)
+              ("o" . aya-open-line)))
 
 (use-package avy
   :bind* ("C-." . avy-goto-char-timer)
@@ -733,7 +748,6 @@
               ("M-G")
               ("M-s f"))
   :diminish dired-omit-mode
-  :hook (dired-mode . dired-hide-details-mode)
   :preface
   (defun dired-two-pane ()
     (interactive)
@@ -806,11 +820,8 @@
                          (set-window-configuration ,wnd))))
         (error "No more than 2 files should be marked"))))
 
-  :config
-  (defvar dired-omit-regexp-orig (symbol-function 'dired-omit-regexp))
-
-  ;; Omit files that Git would ignore. This overwrites the default implemntation.
   (defun dired-omit-regexp ()
+    "Omit files that Git would ignore. This overwrites the default implementation."
     (let ((file (expand-file-name ".git"))
           parent-dir)
       (while (and (not (file-exists-p file))
@@ -849,7 +860,15 @@
                 (split-string omitted-files "\n" t)
                 "\\|")
                "\\)")))
-        (funcall dired-omit-regexp-orig)))))
+        (funcall dired-omit-regexp-orig))))
+  :init
+  (setq dired-dwim-target t
+        dired-recursive-deletes t
+        dired-use-ls-dired nil
+        delete-by-moving-to-trash t)
+  :config
+  (defvar dired-omit-regexp-orig (symbol-function 'dired-omit-regexp))
+  :hook (dired-mode . dired-hide-details-mode))
 
 (use-package dired-toggle
   :after dired
@@ -922,6 +941,11 @@
   :straight f
   :bind ("C-c e v" . edit-variable))
 
+(use-package editorconfig
+  :defer t
+  :config
+  (editorconfig-mode 1))
+
 (use-package eldoc
   :straight f
   :diminish
@@ -957,11 +981,18 @@
   :bind (("C-c m e" . elmacro-mode)
          ("C-x C-)" . elmacro-show-last-macro)))
 
+(use-package emmet-mode
+  :defer t
+  :config
+  (setq emmet-move-cursor-between-quotes t)
+  :hook (sgml-mode . emmet-mode)
+  :hook (css-mode  . emmet-mode))
+
 (use-package erefactor
   :after elisp-mode
   :hook ((emacs-lisp-mode lisp-interaction-mode)
-	 . (lambda ()
-	     (bind-key "\C-c\C-v" erefactor-map emacs-lisp-mode-map))))
+         . (lambda ()
+             (bind-key "\C-c\C-v" erefactor-map emacs-lisp-mode-map))))
 
 (use-package etags
   :bind ("M-T" . tags-search))
@@ -1039,7 +1070,7 @@ _h_: paragraph
              flycheck-previous-error)
   :init
   (dolist (where '((emacs-lisp-mode-hook . emacs-lisp-mode-map)
-		   (haskell-mode-hook    . haskell-mode-map)
+                   (haskell-mode-hook    . haskell-mode-map)
                    (rust-mode-hook       . rust-mode-map)
                    (js2-mode-hook        . js2-mode-map)
                    (c-mode-common-hook   . c-mode-base-map)))
@@ -1050,7 +1081,9 @@ _h_: paragraph
               t))
   :config
   (defalias 'show-error-at-point-soon 'flycheck-show-error-at-point)
-  (setq-default flycheck-display-errors-delay 0.5))
+  ;; (setq-default flycheck-display-errors-delay 0.5)
+  ;; https://github.com/flycheck/flycheck/issues/1129#issuecomment-319600923
+  (advice-add 'flycheck-eslint-config-exists-p :override (lambda() t)))
 
 (use-package flycheck-haskell
   :after (flycheck haskell-mode)
@@ -1073,9 +1106,9 @@ _h_: paragraph
 (use-package flyspell
   :defer
   :preface
-  ;; Don't spell check embedded snippets in org-mode
-  ;; Source: http://emacs.stackexchange.com/a/9347
   (defun org-mode-flyspell-verify-ignore-blocks (return-value)
+    "Disable spell checking of embedded snippets in `org-mode`.
+  See: http://emacs.stackexchange.com/a/9347"
     (let ((rlt return-value)
           (begin-regexp "^[ \t]*#\\+BEGIN_\\(SRC\\|HTML\\|LATEX\\)")
           (end-regexp "^[ \t]*#\\+END_\\(SRC\\|HTML\\|LATEX\\)")
@@ -1092,10 +1125,11 @@ _h_: paragraph
       return-value))
   
   :init
-  ;; Use Aspell for spellcheck
-  ;; (setq ispell-program-name (concat brew-prefix "/bin/aspell"))
-  ;; (setq ispell-list-command "--list")
-  ;; (setq ispell-dictionary "en_US")
+  (when (executable-find "aspell")
+    ;; Use Aspell for spellcheck
+    (setq ispell-program-name (concat brew-prefix "/bin/aspell"))
+    (setq ispell-list-command "--list")
+    (setq ispell-dictionary "en_US"))
 
   ;; Flyspell messages slow down the spellchecking process
   (setq flyspell-issue-message-flag nil)
@@ -1520,6 +1554,8 @@ _h_: paragraph
   (ivy-re-builders-alist '((t . ivy--regex-ignore-order)))
   (ivy-use-virtual-buffers t)
   (ivy-wrap t)
+  (ivy-use-selectable-promnpt t)
+  (ivy-count-format "")
 
   :preface
   (defun ivy-done-or-delete-char ()
@@ -1596,13 +1632,10 @@ _h_: paragraph
     (setq flycheck-emacs-lisp-load-path 'inherit)))
 
 (use-package json-mode
-  :mode "\\.json\\'")
-
-(use-package json-reformat
-  :after json-mode)
-
-(use-package json-snatcher
-  :after json-mode)
+  :mode "\\.json\\'"
+  :config
+  (use-package json-reformat)
+  (use-package json-snatcher))
 
 (use-package key-chord
   :commands key-chord-mode)
@@ -1650,24 +1683,26 @@ _h_: paragraph
   :hook (haskell-mode . lsp-haskell-enable))
 
 (use-package lsp-mode
-  :after projectile
+  :defer t
   :preface
   (defun my/set-projectile-root ()
     "Set the LSP workspace to the current projectile root when changing projects."
     (when lsp--cur-workspace
       (setq projectile-project-root (lsp--workspace-root lsp--cur-workspace))))
-  :hook (lsp-before-opepn . my/set-projectile-root))
+  
+  :config
+  (use-package lsp-ui
+    :hook (lsp-after-open . lsp-enable-imenu)
+    :hook (lsp-mode       . lsp-ui-mode))
+  
+  (with-eval-after-load 'projectile
+    (add-hook 'lsp-before-open-hook #'my/set-projectile-root)))
 
 (use-package lsp-rust
   :after lsp-mode rust-mode lsp-ui
   :config
   (setq lsp-rust-rls-command '("rustup" "run" "nightly" "rls"))
   :hook (rust-mode . lsp-rust-enable))
-
-(use-package lsp-ui
-  :after lsp-mode
-  :hook (lsp-after-open . lsp-enable-imenu)
-  :hook (lsp-mode       . lsp-ui-mode))
 
 (use-package markdown-mode
   :mode (("\\.md\\'"     . markdown-mode)
@@ -1709,8 +1744,8 @@ _h_: paragraph
     (let ((current-prefix-arg '(4)))
       (call-interactively 'magit-status)))
 
-  :hook (magit-mode . hl-line-mode)
   :config
+  (use-package magit-popup  :defer t)
   (use-package magit-commit
     :straight f
     :config
@@ -1729,11 +1764,12 @@ _h_: paragraph
     (magit-define-popup-action 'magit-push-popup
       ?P 'magit--push-current-to-upstream-desc
       #'magit-push-current-to-upstream ?u t))
+  (put 'magit-clean 'dsabled nil)
   
-  :hook (magit-status-mode . (lambda () (my/magit-monitor t))))
+  :hook (magit-mode            . hl-line-mode)
+  :hook (magit-status-mode     . (lambda () (my/magit-monitor t)))
+  :hook (magit-status-sections . magit-insert-worktrees))
 
-(use-package magit-popup
-  :defer t)
 
 (use-package magit-imerge
   ;; jww (2017-12-10): Need to configure.
@@ -1743,6 +1779,10 @@ _h_: paragraph
 (use-package magithub
   :after magit
   :config
+  (use-package magithub-completion
+    :straight f
+    :commands magithub-completion-enable)
+  
   (magithub-feature-autoinject t)
 
   (require 'auth-source-pass)
@@ -1755,16 +1795,14 @@ _h_: paragraph
            (setq my/ghub-token-cache
                  (funcall orig-func host username package nocreate forge))))))
 
-(use-package magithub-completion
-  :straight f
-  :commands magithub-completion-enable)
-
 (use-package markdown-mode
   :mode (("\\`README\\.md\\'" . gfm-mode)
          ("\\.md\\'"          . markdown-mode)
          ("\\.markdown\\'"    . markdown-mode))
   :init
-  (setq markdown-command "multimarkdown"))
+  (setq markdown-command "multimarkdown")
+  :hook (markdown-mode . visual-line-mode)
+  :hook (markdown-mode . (lambda () (flyspell-mode 1))))
 
 (use-package markdown-preview-mode
   :after markdown-mode
@@ -1906,27 +1944,26 @@ _h_: paragraph
               ("M-I"   . paredit-splice-sexp)
               ("C-M-l" . paredit-recentre-on-sexp))
   :bind (:map my/paredit-map
-	      ("n"     . paredit-add-to-next-list)
-	      ("p"     . paredit-add-to-previous-list)
-	      ("j"     . paredit-join-with-next-list)
-	      ("J"     . paredit-join-with-previous-list))
+              ("n"     . paredit-add-to-next-list)
+              ("p"     . paredit-add-to-previous-list)
+              ("j"     . paredit-join-with-next-list)
+              ("J"     . paredit-join-with-previous-list))
   :bind (:map lisp-mode-map
-	      ("<return>" . paredit-newline))
+              ("<return>" . paredit-newline))
   :bind (:map emacs-lisp-mode-map
-	      ("<return>" . paredit-newline))
+              ("<return>" . paredit-newline))
   :hook (paredit-mode
-	 . (lambda ()
-	     (unbind-key "M-r" paredit-mode-map)
-	     (unbind-key "M-s" paredit-mode-map)))
+         . (lambda ()
+             (unbind-key "M-r" paredit-mode-map)
+             (unbind-key "M-s" paredit-mode-map)))
   :config
+  (use-package paredit-ext
+    :straight f
+    :after paredit
+    :load-path "lisp")
   (require 'eldoc)
   (eldoc-add-command 'paredit-backward-delete
-		     'paredit-close-round))
-
-(use-package paredit-ext
-  :straight f
-  :after paredit
-  :load-path "lisp")
+                     'paredit-close-round))
 
 (use-package pdf-tools
   :disabled
@@ -1941,13 +1978,12 @@ _h_: paragraph
   (pdf-tools-install))
 
 (use-package phi-search
-  :defer 5)
-  
-(use-package phi-search-mc
-  :after (phi-search multiple-cursors)
-  :config
-  (phi-search-mc/setup-keys)
-  :hook (isearch-mode-mode . phi-search-from-isearch-mc/setup-keys))
+  :defer 5
+  :after (multiple-cursors)
+  (use-package phi-search-mc
+    :config
+    (phi-search-mc/setup-keys)
+    :hook (isearch-mode-mode . phi-search-from-isearch-mc/setup-keys)))
 
 (use-package pkgbuild-mode
   :mode "/PKGBULD$")
@@ -1963,15 +1999,13 @@ _h_: paragraph
     ;; We ignore the args to `magit-checkout'.
     (projectile-invalidate-cache nil))
   :init
-  (setq projectile-completion-system 'ivy)
+  (setq projectile-completion-system 'ivy
+        projectile-enable-caching nil)
   :config
-  (projectile-mode)
-  (eval-after-load 'magit-branch
-    '(progn
-       (advice-add 'magit-checkout
-                   :after #'my/projectile-invalidate-cache)
-       (advice-add 'magit-branch-and-checkout
-                   :after #'my/projectile-invalidate-cache))))
+  (projectile-global-mode)
+  (with-eval-after-load 'magit-branch
+    (advice-add 'magit-checkout :after #'my/projectile-invalidate-cache)
+    (advice-add 'magit-branch-and-checkout :after #'my/projectile-invalidate-cache)))
 
 (use-package python-mode
   :mode "\\.py\\'"
@@ -2005,14 +2039,6 @@ _h_: paragraph
   
   :hook (python-mode . my/python-mode-hook))
 
-(use-package racer
-  :disabled
-  :defines (racer-rust-src-path)
-  :init
-  (setq racer-cmd (concat (getenv "HOME") ".cargo/bin/racer"))
-  (setq racer-rust-src-path "/Users/mhcolbur.ORADEV/src/rust/src")
-  :hook (rust-mode . racer-mode)
-  :hook (racer-mode . (company-mode eldoc-mode)))
 
 (use-package rainbow-delimiters
   :hook (prog-mode . rainbow-delimiters-mode))
@@ -2059,6 +2085,20 @@ _h_: paragraph
 (use-package restclient
   :mode ("\\.rest\\'" . restclient-mode))
 
+(use-package reveal-in-osx-finder
+  :if (eq system-type 'darwin))
+
+(use-package rjsx-mode
+  :interpreter (("node" . rjsx-mode))
+  :mode (("\\.js?\\'" . rjsx-mode)
+         ("\\.jsx?\\'" . rjsx-mode))
+  :config (progn
+            (electric-indent-mode -1)
+            (setq js2-basic-offset 2
+                  js2-highlight-level 3
+                  js2-bounce-indent-p t
+                  js2-mode-show-strict-warnings nil)))
+
 (use-package rust-mode
   :defer t
   :after company
@@ -2070,37 +2110,44 @@ _h_: paragraph
     (flycheck-mode 1)
     (setq-local fill-column 100)
     (--each '((">=" . (?· (Br . Bl) ?≥))
-	      ("<=" . (?· (Br . Bl) ?≤))
-	      ("!=" . (?· (Br . Bl) ?≠))
-	      ("=>" . (?· (Br . Bl) ?➡))
-	      ("->" . (?· (Br . Bl) ?→)))
+              ("<=" . (?· (Br . Bl) ?≤))
+              ("!=" . (?· (Br . Bl) ?≠))
+              ("=>" . (?· (Br . Bl) ?➡))
+              ("->" . (?· (Br . Bl) ?→)))
       (push it prettify-symbols-alist)))
 
   (defun my/compile-single-rust-file ()
     "Compile a single rust file."
     (interactive)
     (when (and (f-exists? (buffer-name))
-	       (f-file? (buffer-name)))
+               (f-file? (buffer-name)))
       (compile (concat "rustc " (buffer-name) " -o " (f-no-ext (buffer-name))))))
   :config
-  (when (executable-find "rustup")
+  (use-package racer
+    :disabled
+    :if (executable-find "racer")
+    :defines (racer-rust-src-path)
+    :config
+    (setq racer-cmd (executable-find "racer"))
+    ;; Tell racer to use the rustup-managed rust-src
+    ;; rustup component add rust-src
     (setq rust-default-toolchain
           (car (s-split " " (-first
                              (lambda (line) (s-match "default" line))
                              (s-lines (shell-command-to-string "rustup toolchain list"))))))
-    ;; Tell racer to use the rustup-managed rust-src
-    ;; rustup component add rust-src
     (setq rust-src-path (concat (getenv "HOME") "/.multirust/toolchains/"
-				rust-default-toolchain "/lib/rustlib/src/rust/src"))
+                                rust-default-toolchain "/lib/rustlib/src/rust/src"))
     (setq rust-bin-path (concat (getenv "HOME") "/.multirust/toolchains/"
-				rust-default-toolchain "/bin"))
+                                rust-default-toolchain "/bin"))
     (setq racer-rust-src-path rust-src-path)
     (setenv "RUST_SRC_PATH" rust-src-path)
-    (setenv "RUSTC" rust-bin-path))
-
-  ;; Register rust-mode in company dabbrev code modes
-  ;;   (add-to-list 'company-dabbrev-code-modes 'rust-mode)
-
+    (setenv "RUSTC" rust-bin-path)
+    (with-eval-after-load 'company
+      (add-to-list 'company-dabbrev-code-modes 'rust-mode)
+      (add-hook 'racer-mode-hook #'company-mode))
+    :hook (rust-mode  . racer-mode)
+    :hook (racer-mode . eldoc-mode))
+  
   :hook (rust-mode . my/rust-mode-hook))
 
 (use-package savehist
@@ -2114,16 +2161,17 @@ _h_: paragraph
   (save-place-mode 1))
 
 (use-package selected
+  :unless noninteractive
   :defer 5
   :diminish selected-minor-mode
   :bind (:map selected-keymap
-	      ("[" . align-code)
-	      ("f" . fill-region)
-	      ("U" . unfill-region)
-	      ("d" . downcase-region)
-	      ("u" . upcase-region)
-	      ("r" . reverse-region)
-	      ("s" . sort-lines))
+              ("[" . align-code)
+              ("f" . fill-region)
+              ("U" . unfill-region)
+              ("d" . downcase-region)
+              ("u" . upcase-region)
+              ("r" . reverse-region)
+              ("s" . sort-lines))
   :config
   (selected-global-mode))
 
@@ -2136,16 +2184,19 @@ _h_: paragraph
   :hook (after-init . my/server-enable))
 
 (use-package slime
-  :commands slime
+  :defer t
+  :commands slime slime-insert-balanced-comments slime-reindent-defun slime-selector
+  :bind (:map slime-repl-mode-map
+              ("C-c ;" . slime-insert-balanced-cmments)
+              ("M-q"   . slime-reindent-defun)
+              ("M-l"   . slime-selector))
   :init
-  ;; (unless (memq major-mode
-  ;;               '(emacs-lisp-mode inferior-emacs-lisp-mode ielm-mode))
-  ;;   (turn-on-cldoc-mode)
-  ;;   ("M-q" . slime-reindent-defun)
-  ;;   ("M-l" . slime-selector))
-
-  (setq inferior-lisp-program "clisp"
-        slime-contribs '(slime-fancy)))
+  (if (executable-find "clisp")
+      (setq inferior-lisp-program "clisp"
+            slime-contribs '(slime-fancy)))
+  :config
+  (use-package cldoc
+    :hook ((lisp-mode ilisp-mode slime-repl-mode) . turn-on-cldoc-mode)))
 
 (use-package smart-newline
   :diminish
@@ -2158,6 +2209,7 @@ _h_: paragraph
   :bind ("S-SPC" . smart-region))
 
 (use-package sql-indent
+  :defer t
   :commands sqlind-minor-mode)
 
 (use-package string-edit
@@ -2239,56 +2291,54 @@ _h_: paragraph
 (use-package treemacs
   :unless noninteractive
   :defer t
+  :bind (([f8]    . treemacs-toggle)
+         ("M-0"   . treemacs-select-window)
+         ("C-c 1" . treemacs-delete-other-windows)
+         :map my/treemacs-map
+         ("t"     . treemacs-toggle)
+         ("T"     . treemacs)
+         ("B"     . treemacs-bookmark)
+         ("C-t"   . treemacs-find-file)
+         ("M-t"   . treemacs-find-tag))
   :config
+  (use-package treemacs-projectile
+    :after projectile
+    :defer t
+    :config
+    (setq treemacs-header-function #'treemacs-projectile-create-header)
+    :bind (:map my/treemacs-map
+                ("P"    . treemacs-projectile)
+                ("p"    . treemacs-projectile-toggle)))
+
   (setq treemacs-change-root-without-asking nil
-	treemacs-collapse-dirs              (if (executable-find "python") 3 0)
-	treemacs-file-event-delay           5000
-	treemacs-follow-after-init          t
-	treemacs-follow-recenter-distance   0.1
-	treemacs-goto-tag-strategy          'refetch-index
-	treemacs-indentation                2
-	treemacs-indentation-string         " "
-	treemacs-is-never-other-window      nil
-	treemacs-never-persist              nil
-	treemacs-no-png-images              nil
-	treemacs-recenter-after-file-follow nil
-	treemacs-recenter-after-tag-follow  nil
-	treemacs-show-hidden-files          t
-	treemacs-silent-filewatch           nil
-	treemacs-silent-refresh             nil
-	treemacs-sorting                    'alphabetic-desc
-	treemacs-tag-follow-cleanup         t
-	treemacs-tag-follow-delay           1.5
-	treemacs-width                      35)
+        treemacs-collapse-dirs              (if (executable-find "python") 3 0)
+        treemacs-file-event-delay           5000
+        treemacs-follow-after-init          t
+        treemacs-follow-recenter-distance   0.1
+        treemacs-goto-tag-strategy          'refetch-index
+        treemacs-indentation                2
+        treemacs-indentation-string         " "
+        treemacs-is-never-other-window      nil
+        treemacs-never-persist              nil
+        treemacs-no-png-images              nil
+        treemacs-recenter-after-file-follow nil
+        treemacs-recenter-after-tag-follow  nil
+        treemacs-show-hidden-files          t
+        treemacs-silent-filewatch           nil
+        treemacs-silent-refresh             nil
+        treemacs-sorting                    'alphabetic-desc
+        treemacs-tag-follow-cleanup         t
+        treemacs-tag-follow-delay           1.5
+        treemacs-width                      35)
 
   (treemacs-follow-mode t)
   (treemacs-filewatch-mode t)
   (pcase (cons (not (null (executable-find "git")))
-	       (not (null (executable-find "python3"))))
+               (not (null (executable-find "python3"))))
     t     (treemacs-git-mode 'extended))
   (`(t . t)
    (`(t . _)
-    (treemacs-git-mode 'simple)))
-  
-  :bind (([f8]    . treemacs-toggle)
-	 ("M-0"   . treemacs-select-window)
-	 ("C-c 1" . treemacs-delete-other-windows)
-	 :map my/treemacs-map
-	 ("t"     . treemacs-toggle)
-	 ("T"     . treemacs)
-	 ("B"     . treemacs-bookmark)
-	 ("C-t"   . treemacs-find-file)
-	 ("M-t"   . treemacs-find-tag)))
-
-(use-package treemacs-projectile
-  :unless noninteractive
-  :after treemacs projectile
-  :defer t
-  :config
-  (setq treemacs-header-function #'treemacs-projectile-create-header)
-  :bind (:map my/treemacs-map
-	      ("P"    . treemacs-projectile)
-	      ("p"    . treemacs-projectile-toggle)))
+    (treemacs-git-mode 'simple))))
 
 (use-package visual-fill-column
   :unless noninteractive
@@ -2299,18 +2349,6 @@ _h_: paragraph
   :bind (("C-c r"   . vr/replace)
          ("C-c %"   . vr/query-replace)
          ("<C-m> /" . vr/mc-mark)))
-
-(use-package volume
-  :after hydra
-  :commands (volume-lower volume-raise)
-  :config
-  (bind-key* "C-c v"
-	     (defhydra hydra-volume (:color amaranth)
-	       ("d" (volume-lower 5))
-	       ("u" (volume-raise 5))
-	       ("n" volume-raise)
-	       ("p" volume-lower)
-	       ("q" nil "quit"))))
 
 (use-package w3m
   :commands w3m-browse-url)
@@ -2323,11 +2361,6 @@ _h_: paragraph
   (progn
     (setq web-mode-code-indent-offset 2)
     (setq web-mode-enable-auto-quoting nil)))
-
-(use-package which-key
-  :diminish which-key-mode
-  :config
-  (which-key-mode))
 
 (use-package which-func
   :hook (c-mode-common . which-function-mode))
@@ -2486,15 +2519,19 @@ _h_: paragraph
   :if (executable-find "zeal")
   :defer t
   :config
-  (add-to-list 'zeal-at-point-mode-alist '(python-mode . "python"))
-  (add-to-list 'zeal-at-point-mode-alist '(rust-mode   . "rust")))
+  (with-eval-after-load 'python
+    (add-to-list 'zeal-at-point-mode-alist '(python-mode . "python")))
+  (with-eval-after-load 'rust
+    (add-to-list 'zeal-at-point-mode-alist '(rust-mode   . "rust"))))
 
 (use-package dash-at-point
-  :if (executable-find "dash")
+  :if (and (eq system-type 'darwin) (executable-find "dash"))
   :defer t
   :config
-  (add-to-list 'dash-at-point-mode-alist '(python-mode . "python"))
-  (add-to-list 'dash-at-point-mode-alist '(rust-mode   . "rust")))
+  (with-eval-after-load 'python
+    (add-to-list 'dash-at-point-mode-alist '(python-mode . "python")))
+  (with-eval-after-load 'rust
+    (add-to-list 'dash-at-point-mode-alist '(rust-mode   . "rust"))))
 
 ;;;
 ;;; Finalization
