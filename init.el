@@ -703,10 +703,6 @@
   :demand t
   :diminish
   :commands counsel-minibuffer-history
-  :custom (counsel-find-file-ignore-regexp
-           (concat "\\(\\`\\.[^.]\\|"
-                   (regexp-opt completion-ignored-extensions)
-                   "\\'\\)"))
   :bind (("C-*"     . counsel-org-agenda-headlines)
          ("C-x C-f" . counsel-find-file)
          ("C-c e l" . counsel-find-library)
@@ -753,6 +749,10 @@
               :caller 'counsel-recoll))
 
   :config
+  (setq counsel-find-file-ignore-regexp (concat "\\(\\`\\.[^.]\\|"
+						(regexp-opt completion-ignored-extensions)
+						"\\'\\)"))
+  
   (add-to-list 'ivy-sort-matches-functions-alist
                '(counsel-find-file . ivy--sort-files-by-date))
 
@@ -795,11 +795,9 @@
          ([remap kill-whole-line]        . crux-kill-whole-line)))
 
 (use-package css-mode
-  :defer t
   :mode "\\.css\\'")
 
 (use-package csv-mode
-  :defer t
   :mode "\\.csv\\'")
 
 (use-package diff-hl
@@ -1279,12 +1277,6 @@ _h_: paragraph
   :mode (("\\.hs\\(c\\|-boot\\)?\\'" . haskell-mode)
          ("\\.lhs\\'" . literate-haskell-mode)
          ("\\.cabal\\'" . haskell-cabal-mode))
-  :custom
-  (haskell-tags-on-save t)
-  (haskell-process-type 'cabal-repl)	; or 'stack-ghci if using Stack
-  (haskell-process-suggest-remove-import-lines t)
-  (haskell-process-auto-import-loaded-modules t)
-  (haskell-process-log t)
   :bind (:map haskell-mode-map
               ("C-c C-h" . my/haskell-hoogle)
               ("C-c C-," . haskell-navigate-imports)
@@ -1593,16 +1585,6 @@ _h_: paragraph
               ("M-j"   . my/ivy-yank-whole-word))
   :bind (:map ivy-switch-buffer-map
               ("C-k" . ivy-switch-buffer-kill))
-  :custom
-  (ivy-dynamic-exhibit-delay-ms 200)
-  (ivy-height 10)
-  (ivy-initial-inputs-alist nil t)
-  (ivy-magic-tilde nil)
-  (ivy-re-builders-alist '((t . ivy--regex-ignore-order)))
-  (ivy-use-virtual-buffers t)
-  (ivy-wrap t)
-  (ivy-use-selectable-promnpt t)
-  (ivy-count-format "")
   :preface
   (defun ivy-done-or-delete-char ()
     (interactive)
@@ -1655,9 +1637,9 @@ _h_: paragraph
 
   :config
   (use-package counsel
-    :after swiper
-    :bind (("M-x"		  . counsel-M-x)
-           ("C-x C-f"	. counsel-find-file)
+    :after (swiper)
+    :bind (("M-x"	  . counsel-M-x)
+           ("C-x C-f"	  . counsel-find-file)
            ("C-h f"	  . counsel-describe-function)
            ("C-h v"	  . counsel-describe-variable)
            ("C-h i"	  . counsel-info-lookup-symbol)
@@ -1665,11 +1647,11 @@ _h_: paragraph
            ("C-c k"	  . counsel-rg)
            ("C-x l"	  . counsel-locate)
            ("C-c g"	  . counsel-git-grep)
-           ("C-c h i"	. counsel-imenu)
+           ("C-c h i"	  . counsel-imenu)
            ("C-x p"	  . counsel-list-processes)
-           ("M-y"     . counsel-yank-pop))
+           ("M-y"         . counsel-yank-pop))
     :bind (:map ivy-minibuffer-map
-                ("M-y" . ivy-next-line))
+                ("M-y"    . ivy-next-line))
     :config
     (ivy-set-actions
      'counsel-find-file
@@ -1714,6 +1696,16 @@ _h_: paragraph
             ivy-rich-switch-buffer-align-virtual-buffer t
             ivy-rich-path-style 'abbrev))
 
+    (setq ivy-count-format             ""
+	  ivy-dynamic-exhibit-delay-ms 200
+	  ivy-height                   10
+	  ivy-initial-inputs-alist     nil
+	  ivy-magic-tilde              nil
+	  ivy-re-builders-alist        '((t . ivy--regex-ignore-order))
+	  ivy-use-selectable-promnpt   t
+	  ivy-use-virtual-buffers      t
+	  ivy-wrap                     t)
+    
     (ivy-mode 1)
     (ivy-set-occur 'ivy-switch-buffer 'ivy-switch-buffer-occur)
     (with-eval-after-load 'flx
@@ -1764,7 +1756,7 @@ _h_: paragraph
 
   :config
   (use-package lsp-ui
-    :requires lsp-mode
+    :requires (lsp-mode imenu)
     :hook (lsp-after-open . lsp-enable-imenu)
     :hook (lsp-mode       . lsp-ui-mode))
 
@@ -2634,12 +2626,16 @@ _h_: paragraph
     ;; We ignore the args to `magit-checkout'.
     (projectile-invalidate-cache nil))
   
-  :init
-  (setq projectile-completion-system 'ivy
-        projectile-enable-caching nil)
-  
   :config
+  (setq projectile-enable-caching      nil
+	projectile-known-projects-file (expand-file-name "projectile-bookmarks.eld" user-data-directory)
+	projectile-cache-file          (expand-file-name "projectile.cache" user-data-directory))
+  
   (projectile-global-mode)
+  
+  (with-eval-after-load 'ivy
+    (setq projectile-completion-system 'ivy))
+  
   (with-eval-after-load 'magit-branch
     (advice-add 'magit-checkout :after #'my/projectile-invalidate-cache)
     (advice-add 'magit-branch-and-checkout :after #'my/projectile-invalidate-cache)))
@@ -2751,7 +2747,6 @@ _h_: paragraph
   (electric-indent-mode -1))
 
 (use-package rust-mode
-  :defer t
   :after company
   :mode "\\.rs\\'"
   :preface
