@@ -437,12 +437,12 @@
 
   :config
   (use-package biblio
-    :require auctex
+    :requires auctex
     :commands biblio-lookup)
 
   (use-package latex
     :straight f
-    :require auctex
+    :requires auctex
     :config
     (require 'preview)
     (load (exapand-file-name "site-lisp/auctex/style/minted" user-emacs-directory))
@@ -454,7 +454,7 @@
   
   (use-package texinfo
     :mode ("\\.texi\\'" . texinfo-mode)
-    :require auctex
+    :requires auctex
     :preface
     (defun my/texinfo-mode-hook ()
       "My Texinfo mode customizations."
@@ -1068,23 +1068,23 @@
 
 (use-package erefactor
   :after elisp-mode
-  :hook ((emacs-lisp-mode lisp-interaction-mode)
-         . (lambda ()
-             (bind-key "\C-c\C-v" erefactor-map emacs-lisp-mode-map))))
+  :hook ((emacs-lisp-mode lisp-interaction-mode) . (lambda ()
+						     (bind-key "\C-c\C-v" erefactor-map emacs-lisp-mode-map))))
 
 (use-package etags
   :bind ("M-T" . tags-search))
 
 (use-package eval-expr
+  :requires (paredit)
   :bind ("M-:" . eval-expr)
-  :config
+  :preface
   (defun eval-expr-minibuffer-setup ()
     (local-set-key (kbd "<tab>") #'completion-at-point)
     (set-syntax-table emacs-lisp-mode-syntax-table)
     (paredit-mode)))
 
 (use-package exec-path-from-shell
-  :if (eq system-type 'darwin)
+  :if (eq system-type 'darwin)		; only needed on MacOS
   :config
   (exec-path-from-shell-initialize))
 
@@ -1168,11 +1168,32 @@ _h_: paragraph
                  (bind-key "M-p" #'flycheck-previous-error ,(cdr where)))
               t))
   :config
+
+  (use-package flycheck-haskell
+    :requires (flycheck haskell-mode)
+    :config
+    (flycheck-haskell-setup))
+
+  (use-package flycheck-package
+    :requires (flycheck)
+    :config
+    (use-package package-lint
+      ;; This library provides a linter for the metadata in Emacs Lisp
+      ;; files which are intended to be packages. You can integrate it
+      ;; into your build process.
+      :commands package-lint-current-buffer)
+    
+    (flycheck-package-setup))
+  
   (use-package flycheck-popup-tip
-    :defer t
-    :after flycheck
+    :requires flycheck
     :hook (flycheck-mode . flycheck-popup-tip-mode))
 
+  (use-package flycheck-rust
+    :requires (flycheck rust-mode)
+    :config
+    (flycheck-rust-setup))
+  
   (setq-default flycheck-disabled-checkers '(c/c++-clang c/c++-gcc flycheck-rtags))
   (setq flycheck-emacs-lisp-load-path 'inherit)
   (defalias 'show-error-at-point-soon 'flycheck-show-error-at-point)
@@ -1180,19 +1201,6 @@ _h_: paragraph
   ;; (setq-default flycheck-display-errors-delay 0.5)
   ;; https://github.com/flycheck/flycheck/issues/1129#issuecomment-319600923
   (advice-add 'flycheck-eslint-config-exists-p :override (lambda() t)))
-
-(use-package flycheck-haskell
-  :after (flycheck haskell-mode)
-  :config
-  (flycheck-haskell-setup))
-
-(use-package flycheck-rust
-  :after (flycheck rust-mode)
-  :config
-  (flycheck-rust-setup))
-
-(use-package flycheck-package
-  :after flycheck)
 
 (use-package flyspell
   :defer
@@ -1224,15 +1232,17 @@ _h_: paragraph
 
   ;; Flyspell messages slow down the spellchecking process
   (setq flyspell-issue-message-flag nil)
-  (advice-add 'org-mode-flyspell-verify :filter-return 'org-mode-flyspell-verify-ignore-blocks)
+  (with-eval-after-load 'org-mode
+    (advice-add 'org-mode-flyspell-verify :filter-return 'org-mode-flyspell-verify-ignore-blocks))
+  
   :config
   (use-package flyspell-correct-ivy
-    :after flyspell-mode ivy
+    :requires (flyspell ivy) 
     :defer t
     :bind (:map flyspell-mode-map
 		("C-;" . flyspell-correct-word-generic))
     :init
-    ;; set ivy as correcting interface
+    ;; Set ivy as correcting interface.
     (setq flyspell-correct-interface 'flyspell-correct-ivy)))
 
 (use-package font-lock-studio
@@ -1243,63 +1253,6 @@ _h_: paragraph
   :defer t
   :init
   (autoload #'fullframe "fullframe"))
-
-(use-package gist
-  :no-require t
-  :bind ("C-c G" . my/gist-region-or-buffer)
-  :preface
-  (defun my/gist-region-or-buffer (start end)
-    (interactive "r")
-    (copy-region-as-kill start end)
-    (deactivate-mark)
-    (let ((file-name buffer-file-name))
-      (with-temp-buffer
-        (if file-name
-            (call-process "gist" nil t nil "-f" file-name "-P")
-          (call-process "gist" nil t nil "-P"))
-        (kill-ring-save (point-min) (1- (point-max)))
-        (message (buffer-substring (point-min) (1- (point-max))))))))
-
-(use-package git-gutter-fringe+
-  :if (executable-find "git")
-  :diminish git-gutter-fringe+-mode
-  :config
-  (global-git-gutter+-mode))
-
-(use-package git-link
-  :if (executable-find "git")
-  :bind ("C-c Y" . git-link)
-  :commands (git-link git-link-commit git-link-homepage))
-
-(use-package git-timemachine
-  :if (executable-find "git")
-  :commands git-timemachine)
-
-(use-package git-undo
-  :if (executable-find "git")
-  :load-path "lisp/git-undo"
-  :commands git-undo)
-
-(use-package gitattributes-mode
-  :if (executable-find "git")
-  :defer 5)
-
-(use-package gitconfig-mode
-  :if (executable-find "git")
-  :defer 5)
-
-(use-package github-pullrequest
-  :if (executable-find "git")
-  :commands (github-pullrequest-new
-             github-pullrequest-checkout))
-
-(use-package gitignore-mode
-  :if (executable-find "git")
-  :defer 5)
-
-(use-package gitpatch
-  :if (executable-find "git")
-  :commands gitpatch-mail)
 
 (use-package google-this
   :bind-keymap ("C-c /" . google-this-mode-submap)
@@ -1867,7 +1820,54 @@ _h_: paragraph
       (call-interactively 'magit-status)))
 
   :config
-  (use-package magit-popup  :defer t)
+  (use-package gist
+    :no-require t
+    :bind ("C-c G" . my/gist-region-or-buffer)
+    :preface
+    (defun my/gist-region-or-buffer (start end)
+      (interactive "r")
+      (copy-region-as-kill start end)
+      (deactivate-mark)
+      (let ((file-name buffer-file-name))
+	(with-temp-buffer
+	  (if file-name
+	      (call-process "gist" nil t nil "-f" file-name "-P")
+	    (call-process "gist" nil t nil "-P"))
+	  (kill-ring-save (point-min) (1- (point-max)))
+	  (message (buffer-substring (point-min) (1- (point-max))))))))
+
+  (use-package git-gutter-fringe+
+    :diminish git-gutter-fringe+-mode
+    :config
+    (global-git-gutter+-mode))
+
+  (use-package git-link
+    :bind ("C-c Y" . git-link)
+    :commands (git-link git-link-commit git-link-homepage))
+
+  (use-package git-timemachine
+    :commands git-timemachine)
+
+  (use-package git-undo
+    :load-path "lisp/git-undo"
+    :commands git-undo)
+
+  (use-package gitattributes-mode
+    :defer 5)
+
+  (use-package gitconfig-mode
+    :defer 5)
+
+  (use-package github-pullrequest
+    :commands (github-pullrequest-new
+	       github-pullrequest-checkout))
+
+  (use-package gitignore-mode
+    :defer 5)
+
+  (use-package gitpatch
+    :commands gitpatch-mail)
+  
   (use-package magit-commit
     :straight f
     :config
@@ -1881,6 +1881,9 @@ _h_: paragraph
   (use-package magit-imerge
     :if (executable-find "git-imerge")
     :after magit)
+  
+  (use-package magit-popup
+    :defer t)
   
   (use-package magithub
     :after magit
@@ -1928,7 +1931,7 @@ _h_: paragraph
     :config
     (setq markdown-preview-stylesheets
           (list (concat "https://github.com/dmarcotte/github-markdown-preview/"
-			                  "blob/master/data/css/github.css"))))
+			"blob/master/data/css/github.css"))))
   
   (with-eval-after-load 'flyspell-mode
     ;; Turn on `flyspell-mode` when available.
@@ -2073,7 +2076,7 @@ _h_: paragraph
           ("M-M"     . org-inline-note)
           ("C-c S"   . org-store-link)
           ("C-c l"   . org-insert-link))
-  
+  :defines (org-directory org-default-notes-files)
   :preface
   ;; Remove comments from org document for use with export hook.
   ;; https://emacs.stackexchange.com/questions/22574/orgmode-export-how-to-prevent-a-new-line-for-comment-lines
@@ -2081,7 +2084,7 @@ _h_: paragraph
     "Remove comments from org document.
   For use with export hook."
     (loop for comment in (reverse (org-element-map (org-element-parse-buffer)
-                                      'comment 'identity))
+						   'comment 'identity))
           do
           (setf (buffer-substring (org-element-property :begin comment)
                                   (org-element-property :end comment))
@@ -2157,47 +2160,43 @@ _h_: paragraph
   
   :init
   (load "org-settings" :noerror)
-  (setq  org-default-notes-file (expand-file-name "inbox.org" org-directory)
-         org-directory user-org-directory
-         org-enforce-todo-dependencies t
-         org-fast-tag-selection-single-key 'expert
-         org-footnote-auto-adjust nil
-         org-footnote-define-inline t
-         org-hide-leading-stars t
-         org-highlight-latex-and-related '(latex)
-         org-log-into-drawer "LOGBOOK"
-         org-outline-path-complete-in-steps t
-         org-refile-targets '((org-agenda-files :maxlevel . 3) (nil :maxlevel . 3))
-         org-refile-use-outline-path 'file
-         org-tag-alist '((:startgroup . nil)
-                         ("@call" . ?c)
-                         ("@office" . ?o)
-                         ("@home" . ?h)
-                         ("@read" . ?r)
-                         ("@computer" . ?m)
-                         ("@dev" . ?d)
-                         ("@write" . ?w)
-                         (:endgroup . nil)
-                         ("REFILE" . ?f)
-                         ("SOMEDAY" . ?s)
-                         ("PROJECT" . ?p))
-         org-tags-exclude-from-inheritance '("@call"
-                                             "@office"
-                                             "@home"
-                                             "@read"
-                                             "@computer"
-                                             "@dev"
-                                             "@write"
-                                             "PROJECT")
-         org-todo-keywords '((sequence "TODO(t)" "|" "DONE(d!)")
-                             (sequence "WAITING(w@/!)" "|" "CANCELLED" "DELEGATED(e@)"))
-         org-use-fast-todo-selection t
-         org-use-speed-commands t
-         org-use-sub-superscripts "{}"
-         org-use-tag-inheritance t)
-  
-  ;; Set the initial buffer to be the org agenda view.
-  (setq initial-buffer-choice org-default-notes-files)
+  (setq org-directory user-org-directory
+	org-enforce-todo-dependencies t
+	org-fast-tag-selection-single-key 'expert
+	org-footnote-auto-adjust nil
+	org-footnote-define-inline t
+	org-hide-leading-stars t
+	org-highlight-latex-and-related '(latex)
+	org-log-into-drawer "LOGBOOK"
+	org-outline-path-complete-in-steps t
+	org-refile-targets '((org-agenda-files :maxlevel . 3) (nil :maxlevel . 3))
+	org-refile-use-outline-path 'file
+	org-tag-alist '((:startgroup . nil)
+			("@call" . ?c)
+			("@office" . ?o)
+			("@home" . ?h)
+			("@read" . ?r)
+			("@computer" . ?m)
+			("@dev" . ?d)
+			("@write" . ?w)
+			(:endgroup . nil)
+			("REFILE" . ?f)
+			("SOMEDAY" . ?s)
+			("PROJECT" . ?p))
+	org-tags-exclude-from-inheritance '("@call"
+					    "@office"
+					    "@home"
+					    "@read"
+					    "@computer"
+					    "@dev"
+					    "@write"
+					    "PROJECT")
+	org-todo-keywords '((sequence "TODO(t)" "|" "DONE(d!)")
+			    (sequence "WAITING(w@/!)" "|" "CANCELLED" "DELEGATED(e@)"))
+	org-use-fast-todo-selection t
+	org-use-speed-commands t
+	org-use-sub-superscripts "{}"
+	org-use-tag-inheritance t)
   
   :config
   (use-package org-agenda
@@ -2393,7 +2392,7 @@ _h_: paragraph
 
   (use-package org-ref
     ;; See https://github.com/jkitchin/org-ref/blob/master/org-ref.org
-    :requries bibtex
+    :requires bibtex
     :preface
     (defun my/org-ref-open-pdf-at-point ()
       "Open the pdf for bibtex key under point if it exists."
@@ -2507,6 +2506,15 @@ _h_: paragraph
     :init
     (setq org-export-copy-to-kill-ring 'if-interactive))
 
+  (use-package ox-md
+    :straight f
+    :requires markdown
+    :defer t)
+
+  (use-package ox-pandoc
+    :requires pandoc
+    :defer t)
+
   (use-package ox-publish
     :disabled
     :defer t
@@ -2554,57 +2562,54 @@ _h_: paragraph
                                        :components
                                        ("blog-content" "blog-static" "blog-rss")))))
 
-  (use-package ox-md
-    :straight f
-    :requires markdown
-    :defer t)
-
-  (use-package ox-pandoc
-    :requires pandoc
-    :defer t)
-
   (use-package ox-texinfo-plus
     :straight f
     :requires texinfo
     :defer t)
+
+  ;; Set the initial buffer to be the org agenda view.
+  (setq org-default-notes-file (expand-file-name "inbox.org" org-directory))
+  (setq initial-buffer-choice org-default-notes-files)
   
   :hook (org-export-before-processing . my/delete-org-comments))
 
-(use-package package-lint
-  :commands package-lint-current-buffer)
-
 (use-package paredit
   :diminish
-  :hook ((lisp-mode emacs-lisp-mode) . paredit-mode)
-  :bind (("C-c ( n"    . paredit-add-to-next-list)
-         ("C-c ( p"    . paredit-add-to-previous-list)
-         ("C-c ( j"    . paredit-join-with-next-list)
-         ("C-c ( J"    . paredit-join-with-previous-list))
-  :bind (:map paredit-mode-map
-              ("[")
-              ("M-k"   . paredit-raise-sexp)
-              ("M-I"   . paredit-splice-sexp)
-              ("C-M-l" . paredit-recentre-on-sexp))
+  :defer t
+  :commands (paredit-mode paredit-backward-delete paredit-close-round paredit-newline)
   :bind (:map lisp-mode-map
               ("<return>" . paredit-newline))
   :bind (:map emacs-lisp-mode-map
               ("<return>" . paredit-newline))
-  :hook (paredit-mode
-         . (lambda ()
-             (unbind-key "M-r" paredit-mode-map)
-             (unbind-key "M-s" paredit-mode-map)))
+  ;; :bind (("C-c ( n"    . paredit-add-to-next-list)
+  ;;        ("C-c ( p"    . paredit-add-to-previous-list)
+  ;;        ("C-c ( j"    . paredit-join-with-next-list)
+  ;;        ("C-c ( J"    . paredit-join-with-previous-list))
+  ;; :bind (:map paredit-mode-map
+  ;;             ("[")
+  ;;             ("M-k"   . paredit-raise-sexp)
+  ;;             ("M-I"   . paredit-splice-sexp)
+  ;;             ("C-M-l" . paredit-recentre-on-sexp))
+  :preface
+  (defun my/paredit-mode-hook ()
+    "Paredit mode customizations."
+    (require 'eldoc)
+    ;; (unbind-key "M-r" paredit-mode-map)
+    ;; (unbind-key "M-s" paredit-mode-map)
+    (eldoc-add-command 'paredit-backward-delete
+		       'paredit-close-round)
+    (paredit-mode))
+  
   :config
   (use-package paredit-ext
     :straight f
     :after paredit
     :load-path "lisp")
-  
-  (require 'eldoc)
-  (eldoc-add-command 'paredit-backward-delete
-                     'paredit-close-round))
+
+  :hook ((lisp-mode emacs-lisp-mode) . my/paredit-mode-hook))
 
 (use-package pdf-tools
-  :disabled
+  :if (executable-find "pdf-tools")
   :magic ("%PDF" . pdf-view-mode)
   :config
   (dolist
@@ -2673,9 +2678,16 @@ _h_: paragraph
   :hook (python-mode . my/python-mode-hook))
 
 (use-package rainbow-delimiters
+  ;; rainbow-delimiters rainbow-delimiters is a "rainbow
+  ;; parentheses"-like mode which highlights delimiters such as
+  ;; parentheses, brackets or braces according to their depth. Each
+  ;; successive level is highlighted in a different color. This makes
+  ;; it easy to spot matching delimiters, orient yourself in the code,
+  ;; and tell which statements are at a given depth.
   :hook (prog-mode . rainbow-delimiters-mode))
 
 (use-package rainbow-mode
+  ;; Colorize color-names in Emacs buffers.
   :commands rainbow-mode)
 
 (use-package recentf
@@ -2994,6 +3006,7 @@ _h_: paragraph
   (which-key-mode))
 
 (use-package whitespace
+  :disabled
   :defer t
   :diminish (global-whitespace-mode
              whitespace-mode
@@ -3003,10 +3016,10 @@ _h_: paragraph
              whitespace-mode
              whitespace-turn-off)
   :defines  (whitespace-auto-cleanup
-	           whitespace-rescan-timer-time
-	           whitespace-silent)
+	     whitespace-rescan-timer-time
+	     whitespace-silent)
   :preface
-  (defun normalize-file ()
+  (defun my/normalize-file ()
     "Cleanup whitespace in a file."
     (interactive)
     (save-excursion
@@ -3046,16 +3059,22 @@ _h_: paragraph
   :config
   (remove-hook 'find-file-hooks 'whitespace-buffer)
   (remove-hook 'kill-buffer-hook 'whitespace-buffer)
+  
   :hook (find-file-hooks . my/maybe-turn-on-whitespace))
 
 (use-package whitespace-cleanup-mode
+  ;; Intelligently call whitespace-cleanup before buffers are saved.
+  ;; To enable it for an entire project, set whitespace-cleanup-mode
+  ;; to t in your .dir-locals.el file.
   :defer 5
   :diminish
   :commands whitespace-cleanup-mode
   :config
-  (global-whitespace-cleanup-mode 1))
+  ;; (global-whitespace-cleanup-mode 1)
+  )
 
 (use-package windmove
+  :after (hydra)
   :preface
   (defun my/hydra-move-splitter-left (arg)
     "Move window splitter left."
@@ -3124,13 +3143,13 @@ _h_: paragraph
          ("C-c y l" . yas-describe-tables)
          ("C-c y m" . yas-minor-mode)
          ("C-c y n" . yas-new-snippet)
-         ("C-c y t" . yas-tryout-snippet)
+	 ("C-c y t" . yas-tryout-snippet)
          ("C-c y x" . yas-expand))
   :bind (:map yas-keymap
               ("C-i" . yas-next-field-or-maybe-expand))
   :config
   (use-package auto-yasnippet
-    :after yasnippet
+    :requires (yasnippet)
     :bind (("C-c y a" . aya-create)
            ("C-c y e" . aya-expand)
            ("C-c y o" . aya-open-line)))
