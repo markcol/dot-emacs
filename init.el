@@ -49,7 +49,13 @@
   (setq straight-use-package-by-default t)
 
   ;; Enable tracing of use-package declarations for easier debugging.
-  ;; (setq use-package-verbose t)
+  ;; (setq use-package-verbose nil)
+
+  ;; If `use-package-expand-minimally` is nil (the default), use-package
+  ;; attempts to catch and report errors that occur during expansion of
+  ;; use-package declarations in your init file. Setting
+  ;; `use-package-expand-minimally` to t completely disables this checking.
+  ;; (setq use-package-expand-minimally t)
 
   ;; Bootstrap `use-package` integration for straight.el.
   (straight-use-package 'use-package)
@@ -118,7 +124,10 @@
   (set-keyboard-coding-system 'utf-8)
   
   (defalias 'yes-or-no-p #'y-or-n-p)
-  (setq confirm-kill-emacs #'y-or-n-p))
+  (setq confirm-kill-emacs #'y-or-n-p)
+
+  (require 'cl-lib)
+  )
 
 
 ;;;
@@ -409,7 +418,7 @@
 
 (use-package auctex
   :mode ("\\.tex\\'" . TeX-latex-mode)
-  :config
+  :preface
   (defun latex-help-get-cmd-alist ()    ;corrected version:
     "Scoop up the commands in the index of the latex info manual.
    The values are saved in `latex-help-cmd-alist' for speed."
@@ -425,6 +434,56 @@
                                            (match-end 2))))
               (add-to-list 'latex-help-cmd-alist (cons key value))))))
     latex-help-cmd-alist)
+
+  :config
+  (use-package biblio
+    :require auctex
+    :commands biblio-lookup)
+
+  (use-package latex
+    :straight f
+    :require auctex
+    :config
+    (require 'preview)
+    (load (exapand-file-name "site-lisp/auctex/style/minted" user-emacs-directory))
+    (info-lookup-add-help :mode 'LaTeX-mode
+                          :regexp ".*"
+                          :parse-rule "\\\\?[a-zA-Z]+\\|\\\\[^a-zA-Z]"
+                          :doc-spec '(("(latex2e)Concept Index")
+                                      ("(latex2e)Command Index"))))
+  
+  (use-package texinfo
+    :mode ("\\.texi\\'" . texinfo-mode)
+    :require auctex
+    :preface
+    (defun my/texinfo-mode-hook ()
+      "My Texinfo mode customizations."
+      (dolist (mapping '((?b . "emph")
+                         (?c . "code")
+                         (?s . "samp")
+                         (?d . "dfn")
+                         (?o . "option")
+                         (?x . "pxref")))
+        (local-set-key (vector (list 'alt (car mapping)))
+                       `(lambda () (interactive)
+                          (TeX-insert-macro ,(cdr mapping))))))
+
+    (defun texinfo-outline-level ()
+      "Calculate level of current texinfo outline heading."
+      (require 'texinfo)
+      (save-excursion
+        (if (bobp)
+            0
+          (forward-char 1)
+          (let* ((word (buffer-substring-no-properties
+                        (point) (progn (forward-word) (point))))
+                 (entry (assoc word texinfo-section-list)))
+            (if entry
+                (nth 1 entry)
+              5)))))
+
+    :hook (texinfo-mode . my/texinfo-mode-hook))
+
   :hook (Tex-after-compilation-finished-functions . TeX-revert-document-buffer))
 
 (use-package auth-source-pass
@@ -481,12 +540,6 @@
   (add-hook 'auto-compile-inhibit-compile-hook
             #'auto-compile-inhibit-compile-detached-git-head))
 
-(use-package auto-yasnippet
-  :after yasnippet
-  :bind (("C-c y a" . aya-create)
-         ("C-c y e" . aya-expand)
-         ("C-c y o" . aya-open-line)))
-
 (use-package avy
   :bind* ("C-." . avy-goto-char-timer)
   :config
@@ -495,9 +548,6 @@
 (use-package avy-zap
   :bind (("M-z" . avy-zap-to-char-dwim)
          ("M-Z" . avy-zap-up-to-char-dwim)))
-
-(use-package biblio
-  :commands biblio-lookup)
 
 (use-package bm
   :bind (("C-c b b" . bm-toggle)
@@ -524,29 +574,6 @@
 
 (use-package bytecomp-simplify
   :defer 15)
-
-(use-package counsel
-  :bind (("M-x"		  . counsel-M-x)
-         ("C-x C-f"	. counsel-find-file)
-         ("C-h f"	  . counsel-describe-function)
-         ("C-h v"	  . counsel-describe-variable)
-         ("C-h i"	  . counsel-info-lookup-symbol)
-         ("C-h u"	  . counsel-unicode-char)
-         ("C-c k"	  . counsel-rg)
-         ("C-x l"	  . counsel-locate)
-         ("C-c g"	  . counsel-git-grep)
-         ("C-c h i"	. counsel-imenu)
-         ("C-x p"	  . counsel-list-processes)
-         ("M-y"     . counsel-yank-pop))
-  :bind (:map ivy-minibuffer-map
-              ("M-y" . ivy-next-line))
-  :config
-  (ivy-set-actions
-   'counsel-find-file
-   '(("j" find-file-other-window "other")))
-  (ivy-set-actions 'counsel-git-grep
-                   '(("j" find-file-other-window "other"))))
-
 
 (use-package cmake-mode
   :mode "CMakeLists\\.txt\\'"
@@ -963,40 +990,6 @@
   (require 'docker-volumes)
   (require 'docker-networks)
   (docker-global-mode))
-
-(use-package dot-org
-  :straight f
-  :load-path "lisp"
-  :bind* (("M-m"   . org-smart-capture)
-          ("M-M"   . org-inline-note)
-          ("C-c a" . org-agenda)
-          ("C-c S" . org-store-link)
-          ("C-c l" . org-insert-link)
-          ("C-9"   . my/org-capture-todo))
-  
-
-  :preface
-  ;; remove comments from org document for use with export hook
-  ;; https://emacs.stackexchange.com/questions/22574/orgmode-export-how-to-prevent-a-new-line-for-comment-lines
-  (defun my/delete-org-comments (backend)
-    "Remove comments from org document.
-  For use with export hook."
-    (loop for comment in (reverse (org-element-map (org-element-parse-buffer)
-                                                   'comment 'identity))
-          do
-          (setf (buffer-substring (org-element-property :begin comment)
-                                  (org-element-property :end comment))
-                "")))
-
-  (defun my/org-capture-todo ()
-    "Capture a TODO action in `org-mode`."
-    (interactive)
-    (org-capture nil "t"))
-
-  :config
-  (setq initial-buffer-choice org-default-notes-files)
-  (setq org-highlight-latex-and-related '(latex))
-  :hook (org-export-before-processing . my/delete-org-comments))
 
 (use-package ediff
   :bind (("C-c = b" . ediff-buffers)
@@ -1708,32 +1701,70 @@ _h_: paragraph
         (insert (replace-regexp-in-string "  +" " " amend)))))
 
   :config
-  (use-package ivy-bibtex
-    :after (ivy)
-    :defer t
-    :commands ivy-bibtex)
-
-  (use-package ivy-hydra
-    :after (hydra)
-    :defer t)
-
-  (use-package ivy-pass
-    :defer t
-    :commands ivy-pass)
-
-  (use-package ivy-rich
-    :demand t
+  (use-package counsel
+    :after swiper
+    :bind (("M-x"		  . counsel-M-x)
+           ("C-x C-f"	. counsel-find-file)
+           ("C-h f"	  . counsel-describe-function)
+           ("C-h v"	  . counsel-describe-variable)
+           ("C-h i"	  . counsel-info-lookup-symbol)
+           ("C-h u"	  . counsel-unicode-char)
+           ("C-c k"	  . counsel-rg)
+           ("C-x l"	  . counsel-locate)
+           ("C-c g"	  . counsel-git-grep)
+           ("C-c h i"	. counsel-imenu)
+           ("C-x p"	  . counsel-list-processes)
+           ("M-y"     . counsel-yank-pop))
+    :bind (:map ivy-minibuffer-map
+                ("M-y" . ivy-next-line))
     :config
-    (ivy-set-display-transformer 'ivy-switch-buffer
-                                 'ivy-rich-switch-buffer-transformer)
-    (setq ivy-virtual-abbreviate 'full
-          ivy-rich-switch-buffer-align-virtual-buffer t
-          ivy-rich-path-style 'abbrev))
+    (ivy-set-actions
+     'counsel-find-file
+     '(("j" find-file-other-window "other")))
+    (ivy-set-actions 'counsel-git-grep
+                     '(("j" find-file-other-window "other"))))
+  (use-package swiper
+    :diminish ivy-mode
+    :after ivy
+    :bind (:map swiper-map
+                ("M-y" . yank)
+                ("M-%" . swiper-query-replace)
+                ("C-." . swiper-avy)
+                ("M-c" . my/swiper-mc-fixed))
+    :bind (:map isearch-mode-map
+                ("C-o" . swiper-from-isearch))
+    :preface
+    (defun my/swiper-mc-fixed ()
+      (interactive)
+      (setq swiper--current-window-start nil)
+      (swiper-mc))
+    :config
+    (use-package ivy-bibtex
+      :after (ivy)
+      :defer t
+      :commands ivy-bibtex)
 
-  (ivy-mode 1)
-  (ivy-set-occur 'ivy-switch-buffer 'ivy-switch-buffer-occur)
-  (with-eval-after-load 'flx
-    (setq ivy-re-builders-alist '((t . ivy--regex-fuzzy)))))
+    (use-package ivy-hydra
+      :after (hydra)
+      :defer t)
+
+    (use-package ivy-pass
+      :defer t
+      :commands ivy-pass)
+
+    (use-package ivy-rich
+      :demand t
+      :config
+      (ivy-set-display-transformer 'ivy-switch-buffer
+                                   'ivy-rich-switch-buffer-transformer)
+      (setq ivy-virtual-abbreviate 'full
+            ivy-rich-switch-buffer-align-virtual-buffer t
+            ivy-rich-path-style 'abbrev))
+
+    (ivy-mode 1)
+    (ivy-set-occur 'ivy-switch-buffer 'ivy-switch-buffer-occur)
+    (with-eval-after-load 'flx
+      (setq ivy-re-builders-alist '((t . ivy--regex-fuzzy))))))
 
 (use-package json-mode
   :mode "\\.json\\'"
@@ -1743,18 +1774,6 @@ _h_: paragraph
 
 (use-package key-chord
   :commands key-chord-mode)
-
-(use-package latex
-  :straight f
-  :after auctex
-  :config
-  (require 'preview)
-  (load (exapand-file-name "site-lisp/auctex/style/minted" user-emacs-directory))
-  (info-lookup-add-help :mode 'LaTeX-mode
-                        :regexp ".*"
-                        :parse-rule "\\\\?[a-zA-Z]+\\|\\\\[^a-zA-Z]"
-                        :doc-spec '(("(latex2e)Concept Index")
-                                    ("(latex2e)Command Index"))))
 
 (use-package lisp-mode
   :straight f
@@ -1779,32 +1798,33 @@ _h_: paragraph
   ;; https://github.com/emacs-lsp/lsp-haskell
   ;; Reuqires installation of haskell-lsp: https://github.com/alanz/haskell-lsp
   :if (executable-find "hie")
-  :after (lsp-mode haskell-mode lsp-ui)
+  :requires (lsp-mode lsp-ui haskell-mode)
   :hook (haskell-mode . lsp-haskell-enable))
 
 (use-package lsp-mode
-  :defer t
+  :after prog-mode
   :preface
   (defun my/set-projectile-root ()
-    "Set the LSP workspace to the current projectile root when changing projects."
+    "Automatically set the LSP workspace to the current Projectile root when changing projects."
     (when lsp--cur-workspace
       (setq projectile-project-root (lsp--workspace-root lsp--cur-workspace))))
 
   :config
   (use-package lsp-ui
+    :requires lsp-mode
     :hook (lsp-after-open . lsp-enable-imenu)
     :hook (lsp-mode       . lsp-ui-mode))
 
   (use-package lsp-flycheck
     :straight f
-    :after lsp-ui)
+    :requires (lsp-mode lsp-ui flycheck))
 
   (with-eval-after-load 'projectile
     (add-hook 'lsp-before-open-hook #'my/set-projectile-root)))
 
 (use-package lsp-rust
+  :requires (lsp-mode lsp-ui rust-mode)
   :if (executable-find "rustup")
-  :after lsp-mode rust-mode lsp-ui
   :config
   (setq lsp-rust-rls-command '("rustup" "run" "nightly" "rls"))
   :hook (rust-mode . lsp-rust-enable))
@@ -1862,52 +1882,59 @@ _h_: paragraph
     :if (executable-find "git-imerge")
     :after magit)
   
+  (use-package magithub
+    :after magit
+    :config
+    (use-package magithub-completion
+      :straight f
+      :commands magithub-completion-enable)
+
+    (magithub-feature-autoinject t)
+
+    (require 'auth-source-pass)
+    (defvar my/ghub-token-cache nil)
+
+    (advice-add
+     'ghub--token :around
+     #'(lambda (orig-func host username package &optional nocreate forge)
+         (or my/ghub-token-cache
+             (setq my/ghub-token-cache
+                   (funcall orig-func host username package nocreate forge))))))
+
   (with-eval-after-load 'magit-remote
     (magit-define-popup-action 'magit-fetch-popup
-			       ?f 'magit-get-remote #'magit-fetch-from-upstream ?u t)
+      ?f 'magit-get-remote #'magit-fetch-from-upstream ?u t)
     (magit-define-popup-action 'magit-pull-popup
-			       ?F 'magit-get-upstream-branch #'magit-pull-from-upstream ?u t)
+      ?F 'magit-get-upstream-branch #'magit-pull-from-upstream ?u t)
     (magit-define-popup-action 'magit-push-popup
-			       ?P 'magit--push-current-to-upstream-desc
-			       #'magit-push-current-to-upstream ?u t))
+      ?P 'magit--push-current-to-upstream-desc
+      #'magit-push-current-to-upstream ?u t))
   (put 'magit-clean 'dsabled nil)
 
   :hook (magit-mode            . hl-line-mode)
   :hook (magit-status-mode     . (lambda () (my/magit-monitor t))))
-
-(use-package magithub
-  :after magit
-  :config
-  (use-package magithub-completion
-    :straight f
-    :commands magithub-completion-enable)
-
-  (magithub-feature-autoinject t)
-
-  (require 'auth-source-pass)
-  (defvar my/ghub-token-cache nil)
-
-  (advice-add
-   'ghub--token :around
-   #'(lambda (orig-func host username package &optional nocreate forge)
-       (or my/ghub-token-cache
-           (setq my/ghub-token-cache
-                 (funcall orig-func host username package nocreate forge))))))
 
 (use-package markdown-mode
   :mode (("\\`README\\.md\\'" . gfm-mode)
          ("\\.md\\'"          . markdown-mode)
          ("\\.markdown\\'"    . markdown-mode))
   :init
+  (setq markdown-command (cond ((executable-find "multimarkdown") "multimarkdown")
+                               ((executable-find "markdown")      "markdown")
+                               (t                                 nil)))
+  :config
   (use-package markdown-preview-mode
     :if (executable-find "multimarkdown")
     :config
     (setq markdown-preview-stylesheets
           (list (concat "https://github.com/dmarcotte/github-markdown-preview/"
 			                  "blob/master/data/css/github.css"))))
-  (setq markdown-command "multimarkdown")
-  :hook (markdown-mode . visual-line-mode)
-  :hook (markdown-mode . (lambda () (flyspell-mode 1))))
+  
+  (with-eval-after-load 'flyspell-mode
+    ;; Turn on `flyspell-mode` when available.
+    (add-hook 'markdown-mode-hook (lambda () (flyspell-mode 1))))
+  
+  :hook (markdown-mode . visual-line-mode))
 
 (use-package math-symbol-lists
   :defer t)
@@ -1916,9 +1943,13 @@ _h_: paragraph
   :straight f
   :preface
   (defun my/minibuffer-setup-hook ()
+    "Setup minibuffer for use."
+    ;; Disable garbage collection while in minibuffer to avoid stalls.
     (setq gc-cons-threshold most-positive-fixnum))
 
   (defun my/minibuffer-exit-hook ()
+    "Restore minibuffer setup changes."
+    ;; Restore garbage collection afer exiting the minibuffer.
     (setq gc-cons-threshold 800000))
 
   :hook (minibuffer-setup . my/minibuffer-setup-hook)
@@ -1977,7 +2008,7 @@ _h_: paragraph
               ("W"   . mc/mark-previous-word-like-this))
   :config
   (use-package mc-extras
-    :after multiple-cursors
+    :requires (multiple-cursors)
     :bind (("<C-m> M-C-f" . mc/mark-next-sexps)
            ("<C-m> M-C-b" . mc/mark-previous-sexps)
            ("<C-m> <"     . mc/mark-all-above)
@@ -1990,11 +2021,25 @@ _h_: paragraph
 
   (use-package mc-freeze
     :straight f
+    :requires (multiple-cursors)
     :bind ("<C-m> f" . mc/freeze-fake-cursors-dwim))
 
   (use-package mc-rect
     :straight f
-    :bind ("<C-m> ]" . mc/rect-rectangle-to-multiple-cursors)))
+    :requires (multiple-cursors)
+    :bind ("<C-m> ]" . mc/rect-rectangle-to-multiple-cursors))
+
+  (use-package phi-search
+    :defer 5
+    :requires (multiple-cursors)
+    :config
+    (use-package phi-search-mc
+      :requires (multiple-cursors)
+      :config 
+      (phi-search-mc/setup-keys)
+      
+      :hook (isearch-mode-mode . phi-search-from-isearch-mc/setup-keys))
+    ))
 
 (use-package nxml-mode
   :straight f
@@ -2020,6 +2065,510 @@ _h_: paragraph
                  "<!--"
                  sgml-skip-tag-forward
                  nil)))
+
+(use-package org
+  :straight org-plus-contrib
+  :mode ("\\.org\\'" . org-mode)
+  :bind* (("M-m"     . org-smart-capture)
+          ("M-M"     . org-inline-note)
+          ("C-c S"   . org-store-link)
+          ("C-c l"   . org-insert-link))
+  
+  :preface
+  ;; Remove comments from org document for use with export hook.
+  ;; https://emacs.stackexchange.com/questions/22574/orgmode-export-how-to-prevent-a-new-line-for-comment-lines
+  (defun my/delete-org-comments (backend)
+    "Remove comments from org document.
+  For use with export hook."
+    (loop for comment in (reverse (org-element-map (org-element-parse-buffer)
+                                      'comment 'identity))
+          do
+          (setf (buffer-substring (org-element-property :begin comment)
+                                  (org-element-property :end comment))
+                "")))
+
+  (defun my/is-project-p ()
+    "Any task with a todo keyword subtask"
+    (save-restriction
+      (widen)
+      (let ((has-subtask)
+            (subtree-end (save-excursion (org-end-of-subtree t)))
+            (is-a-task (member (nth 2 (org-heading-components)) org-todo-keywords-1)))
+        (save-excursion
+          (forward-line 1)
+          (while (and (not has-subtask)
+                      (< (point) subtree-end)
+                      (re-search-forward "^\*+ " subtree-end t))
+            (when (member (org-get-todo-state) org-todo-keywords-1)
+              (setq has-subtask t))))
+        (and is-a-task has-subtask))))
+
+  (defun my/list-sublevels-for-projects-indented ()
+    "Set org-tags-match-list-sublevels so when restricted to a subtree we list all subtasks.
+  This is normally used by skipping functions where this variable is already local to the agenda."
+    (if (marker-buffer org-agenda-restrict-begin)
+        (setq org-tags-match-list-sublevels 'indented)
+      (setq org-tags-match-list-sublevels nil))
+    nil)
+
+  (defun my/skip-non-stuck-projects ()
+    "Skip trees that are not stuck projects"
+    (save-restriction
+      (widen)
+      (let ((next-headline (save-excursion (or (outline-next-heading) (point-max)))))
+        (if (my/is-project-p)
+            (let* ((subtree-end (save-excursion (org-end-of-subtree t)))
+                   (has-next (save-excursion
+                               (forward-line 1)
+                               (and (< (point) subtree-end)
+                                    (re-search-forward "^\\*+ \\(TODO\\) " subtree-end t)))))
+              (if has-next
+                  next-headline
+                nil)) ; a stuck project, has subtasks but no next task
+          next-headline))))
+
+  (defun my/skip-non-projects ()
+    "Skip trees that are not projects"
+    (my/list-sublevels-for-projects-indented)
+    (if (save-excursion (my/skip-non-stuck-projects))
+        (save-restriction
+          (widen)
+          (let ((subtree-end (save-excursion (org-end-of-subtree t))))
+            (if (my/is-project-p)
+                nil
+              subtree-end)))
+      (org-end-of-subtree t)))
+
+  (defun my/skip-projects ()
+    "Skip trees that are projects."
+    (save-restriction
+      (widen)
+      (let ((next-headline (save-excursion (or (outline-next-heading) (point-max)))))
+        (cond
+         ((my/is-project-p)
+          next-headline)
+         (t
+          nil)))))
+
+  (defun my/org-summary-todo (n-done n-not-done)
+    "Switch entry to DONE when all subentries are done, to TODO otherwise."
+    (let (org-log-done)   ; turn off logging
+      (org-todo (if (= n-not-done 0) "DONE" "TODO"))))
+  
+  :init
+  (load "org-settings" :noerror)
+  (setq  org-default-notes-file (expand-file-name "inbox.org" org-directory)
+         org-directory user-org-directory
+         org-enforce-todo-dependencies t
+         org-fast-tag-selection-single-key 'expert
+         org-footnote-auto-adjust nil
+         org-footnote-define-inline t
+         org-hide-leading-stars t
+         org-highlight-latex-and-related '(latex)
+         org-log-into-drawer "LOGBOOK"
+         org-outline-path-complete-in-steps t
+         org-refile-targets '((org-agenda-files :maxlevel . 3) (nil :maxlevel . 3))
+         org-refile-use-outline-path 'file
+         org-tag-alist '((:startgroup . nil)
+                         ("@call" . ?c)
+                         ("@office" . ?o)
+                         ("@home" . ?h)
+                         ("@read" . ?r)
+                         ("@computer" . ?m)
+                         ("@dev" . ?d)
+                         ("@write" . ?w)
+                         (:endgroup . nil)
+                         ("REFILE" . ?f)
+                         ("SOMEDAY" . ?s)
+                         ("PROJECT" . ?p))
+         org-tags-exclude-from-inheritance '("@call"
+                                             "@office"
+                                             "@home"
+                                             "@read"
+                                             "@computer"
+                                             "@dev"
+                                             "@write"
+                                             "PROJECT")
+         org-todo-keywords '((sequence "TODO(t)" "|" "DONE(d!)")
+                             (sequence "WAITING(w@/!)" "|" "CANCELLED" "DELEGATED(e@)"))
+         org-use-fast-todo-selection t
+         org-use-speed-commands t
+         org-use-sub-superscripts "{}"
+         org-use-tag-inheritance t)
+  
+  ;; Set the initial buffer to be the org agenda view.
+  (setq initial-buffer-choice org-default-notes-files)
+  
+  :config
+  (use-package org-agenda
+    :straight f
+    :bind (("<f6>"  . my/org-agenda)
+           ("C-c a" . org-agenda))
+    :preface
+    (defun my/org-agenda ()
+      (interactive)
+      (org-agenda nil "w"))
+    
+    (defun my/org-agenda-width ()
+      "Set the width of the Org Agenda window based on the contents."
+      (setq org-agenda-tags-column (- (window-width))))
+    
+    :config
+    (use-package org-super-agenda
+      ;; https://github.com/alphapapa/org-super-agenda      
+      :after org-agenda
+      :config
+      (let ((org-super-agenda-groups
+             '(;; Each group has an implicit boolean OR operator between its selectors.
+               (:name "Today"  ; Optionally specify section name
+                      :time-grid t  ; Items that appear on the time grid
+                      :todo "TODAY")  ; Items that have this TODO keyword
+               (:name "Important"
+                      ;; Single arguments given alone
+                      :tag "bills"
+                      :priority "A")
+               ;; Set order of multiple groups at once
+               (:order-multi (2 (:name "Shopping in town"
+                                       ;; Boolean AND group matches items that match all subgroups
+                                       :and (:tag "shopping" :tag "@town"))
+                                (:name "Food-related"
+                                       ;; Multiple args given in list with implicit OR
+                                       :tag ("food" "dinner"))
+                                (:name "Personal"
+                                       :habit t
+                                       :tag "personal")
+                                (:name "Space-related (non-moon-or-planet-related)"
+                                       ;; Regexps match case-insensitively on the entire entry
+                                       :and (:regexp ("space" "NASA")
+                                                     ;; Boolean NOT also has implicit OR between selectors
+                                                     :not (:regexp "moon" :tag "planet")))))
+               ;; Groups supply their own section names when none are given
+               (:todo "WAITING" :order 8)  ; Set order of this section
+               (:todo ("SOMEDAY" "TO-READ" "CHECK" "TO-WATCH" "WATCHING")
+                      ;; Show this group at the end of the agenda (since it has the
+                      ;; highest number). If you specified this group last, items
+                      ;; with these todo keywords that e.g. have priority A would be
+                      ;; displayed in that group instead, because items are grouped
+                      ;; out in the order the groups are listed.
+                      :order 9)
+               (:priority<= "B"
+                            ;; Show this section after "Today" and "Important", because
+                            ;; their order is unspecified, defaulting to 0. Sections
+                            ;; are displayed lowest-number-first.
+                            :order 1)
+               ;; After the last group, the agenda will display items that didn't
+               ;; match any of these groups, with the default order position of 99
+               )))
+        (org-agenda nil "a")))
+
+    (setq org-agenda-custom-commands '(("w" "Day's Agenda and Tasks"
+                                        ((agenda "" (( org-agenda-span 1)))
+                                         (tags-todo "-SOMEDAY/!"
+                                                    ((org-agenda-overriding-header "Stuck Projects")
+                                                     (org-agenda-skip-function 'my/skip-non-stuck-projects)))
+                                         (tags-todo "-SOMEDAY/!"
+                                                    ((org-agenda-overriding-header "Projects")
+                                                     (org-agenda-skip-function 'my/skip-non-projects)
+                                                     (org-agenda-ignore-scheduled 'future)
+                                                     (org-agenda-ignore-deadlines 'future)
+                                                     (org-agenda-sorting-strategy
+                                                      '(category-keep))))
+                                         (tags-todo "-CANCELLED/!WAITING"
+                                                    ((org-agenda-overriding-header "Waiting and Postponed Tasks")
+                                                     (org-agenda-skip-function 'my/skip-projects)
+                                                     (org-agenda-todo-ignore-scheduled t)
+                                                     (org-agenda-todo-ignore-deadlines t)))
+                                         (tags-todo "-SOMEDAY/!-WAITING"
+                                                    ((org-agenda-overriding-header "Tasks")
+                                                     (org-agenda-skip-function 'my/skip-projects)
+                                                     (org-agenda-todo-ignore-scheduled t)
+                                                     (org-agenda-todo-ignore-deadlines t)
+                                                     (org-agenda-sorting-strategy
+                                                      '(category-keep))))
+                                         nil))
+                                       ("#" "Stuck Projects" tags-todo "-SOMEDAY/!"
+                                        ((org-agenda-overriding-header "Stuck Projects")
+                                         (org-agenda-skip-function 'my/skip-non-stuck-projects)))
+                                       ("R" "Tasks" tags-todo "-REFILE-CANCELLED/!-WAITING"
+                                        ((org-agenda-overriding-header "Tasks")
+                                         (org-agenda-skip-function 'my/skip-projects)
+                                         (org-agenda-sorting-strategy
+                                          '(category-keep))))
+                                       ("p" "Project Lists" tags-todo "-SOMEDAY/!"
+                                        ((org-agenda-overriding-header "Projects")
+                                         (org-agenda-skip-function 'my/skip-non-projects)
+                                         (org-agenda-ignore-scheduled 'future)
+                                         (org-agenda-ignore-deadlines 'future)
+                                         (org-agenda-sorting-strategy
+                                          '(category-keep))))
+                                       ("b" "Waiting Tasks" tags-todo "-CANCELLED/!WAITING"
+                                        ((org-agenda-overriding-header "Waiting and Postponed tasks")
+                                         (org-agenda-skip-function 'my/skip-projects)
+                                         (org-agenda-todo-ignore-scheduled 'future)
+                                         (org-agenda-todo-ignore-deadlines 'future)))
+                                       ("e" "Errand List" tags-todo "@shops"
+                                        ((org-agenda-prefix-format "[ ]")
+                                         (org-agenda-todo-keyword-format "")))
+                                       ("c" todo "TODO"
+                                        ((org-agenda-sorting-strategy '(tag-up priority-down)))))
+          org-agenda-compact-blocks t
+          org-agenda-diary-file (expand-file-name "diary.org" org-directory)
+          org-agenda-files (list (expand-file-name org-directory) (expand-file-name "projects/" org-directory))
+          org-agenda-prefix-format '((agenda    . " %i %-12:c%?-12t% s %b")
+                                     (timeline  . "  % s %b")
+                                     (todo      . " %i %-12:c %b")
+                                     (tags      . " %i %-12:c %b")
+                                     (search    . " %i %-12:c %b"))
+          org-agenda-skip-deadline-if-done t
+          org-agenda-skip-scheduled-if-done t
+          org-agenda-tags-todo-honor-ignore-options t
+          org-agenda-todo-ignore-with-date t
+          org-agenda-window-setup 'current-window)
+    
+    :hook (org-agenda-mode . my/org-agenda-width))
+
+  (use-package org-capture
+    :straight f	
+    :bind (("C-c r"  . org-capture)
+           ("C-9"    . my/org-capture-todo))
+    :preface
+    (defun my/org-capture-todo ()
+      "Capture a TODO action in `org-mode`."
+      (interactive)
+      (org-capture nil "t"))
+
+    :config
+    (setq org-capture-templates '(("i" "Interruption" entry
+                                   (expand-file-name "inbox.org" user-org-directory)
+                                   "* %?\n"
+                                   :clock-in t)
+                                  ("n" "Notes" entry
+                                   (expand-file-name "inbox.org" user-org-directory)
+                                   "* %?\n%U\n%i\n%a")
+                                  ("t" "Todo" entry
+                                   (expand-file-name "inbox.org" user-org-directory)
+                                   "* TODO %?\n%U\n%i\n%a")
+                                  ("b" "Book" entry
+                                   (file+headline (expand-file-name "reading.org" user-org-directory) "Read")
+                                   "** %^{Title}\n:PROPERTIES:\n:Author: %^{Author}p \n:Started: %u\n:Finished: \n:END:\n\n"
+                                   :immediate-finish t))))
+
+  (use-package org-babel
+    :straight f
+    :no-require
+    :config
+    (use-package ob-diagrams)
+    (use-package ob-restclient)
+    (use-package ob-rust)
+
+    (org-babel-do-load-languages
+     'org-babel-load-languages
+     '(
+       (calc       . t)
+       (ditaa      . t)
+       (dot        . t)
+       (emacs-lisp . t)
+       (latex      . t)
+       (plantuml   . t)
+       (python     . t)
+       (restclient . t)
+       (rust       . t)
+       (sh         . t)
+       (sql        . t)
+       (sqlite     . t)
+       )))
+
+  (use-package org-noter
+    :commands org-noter)
+
+  (use-package org-pdfview
+    :requires pdf-tools
+    :config
+    (delete '("\\.pdf\\'" . default) org-file-apps)
+    (add-to-list 'org-file-apps '("\\.pdf\\'" . org-pdfview-open))
+    (add-to-list 'org-file-apps
+                 '("\\.pdf::\\([[:digit:]]+\\)\\'" . org-pdfview-open)))
+
+  (use-package org-protocol :straight f)
+
+  (use-package org-ref
+    ;; See https://github.com/jkitchin/org-ref/blob/master/org-ref.org
+    :requries bibtex
+    :preface
+    (defun my/org-ref-open-pdf-at-point ()
+      "Open the pdf for bibtex key under point if it exists."
+      (interactive)
+      (let* ((results (org-ref-get-bibtex-key-and-file))
+             (key (car results))
+             (pdf-file (funcall org-ref-get-pdf-filename-function key)))
+        (if (file-exists-p pdf-file)
+            (find-file pdf-file)
+          (message "No PDF found for %s" key))))
+    :init
+    (setq org-ref-completion-library 'org-ref-ivy-cite
+          org-ref-open-pdf-function #'my/org-ref-open-pdf-at-point)
+    
+    :config
+    (require 'org-ref-ivy)
+    (require 'org-ref-isbn)
+
+    (setq bibtex-completion-bibliography   (expand-file-name "references.bib" user-bib-directory)
+          bibtex-completion-library-path   (expand-file-name "bibtex-pdfs" user-bib-directory)
+          bibtex-completion-notes-path	   (expand-file-name "bibtex-notes" user-bib-directory)
+          org-ref-bibliography-notes       (expand-file-name "notes.org" user-bib-directory)
+          org-ref-default-bibliography     (expand-file-name "references.bib" user-bib-directory)
+          org-ref-pdf-directory            (expand-file-name "bibtex-pdfs/" user-bib-directory)
+          reftex-default-bibliography      (expand-file-name "references.bib" user-bib-directory)
+          
+          org-ref-show-broken-links t)
+    
+    ;; Settings that control the format of the autogenerated key.
+    (setq bibtex-autokey-year-length           4
+          bibtex-autokey-name-year-separator   "-"
+          bibtex-autokey-year-title-separator  "-"
+          bibtex-autokey-titleword-separator   "-"
+          bibtex-autokey-titlewords            2
+          bibtex-autokey-titlewords-stretch    1
+          bibtex-autokey-titleword-length      5)
+    
+    (when (executable-find "pdflatex")
+      (setq  org-latex-pdf-process
+             '("pdflatex -interaction nonstopmode -output-directory %o %f"
+               "bibtex %b"
+               "pdflatex -interaction nonstopmode -output-directory %o %f"
+               "pdflatex -interaction nonstopmode -output-directory %o %f")))
+
+    (when (and (eq system-type 'darwin)
+               (fboundp 'pdf-tools))
+      ;; Open PDF files with system PDF viewer (works on Mac).
+      (setq bibtex-completion-pdf-open-function 'org-open-file)))
+
+  (use-package org-reveal
+    ;; Make slides with org-mode and reveal.js.
+    ;; https://github.com/yjwen/Org-Reveal
+    :straight (:host github :repo "yjwen/org-reveal")
+    :after org-mode
+    :defer t
+    :config
+    (use-package ox-reveal
+      :init
+      (setq org-reveal-hlevel 2
+            ;; NOTE: org-reveal-root *must* be in URL form (e.g., "file:///...")
+            org-reveal-root (concat "file:///" (getenv "HOME") "/Documents/slides/reveal.js")
+            org-reveal-title-slide 'auto)))
+  
+  (use-package org-rich-yank
+    :defer 5
+    :bind (:map org-mode-map
+                ("C-M-y" . org-rich-yank)))
+
+  (use-package org-velocity
+    :straight f
+    :bind ("C-, C-." . org-velocity))
+
+  (use-package org-web-tools
+    :bind (("C-, C-y"   . my/org-insert-url)
+           ("C-, C-M-y" . org-web-tools-insert-web-page-as-entry))
+    :functions (org-web-tools--org-link-for-url
+                org-web-tools--get-first-url)
+    :preface
+    (declare-function org-web-tools--org-link-for-url "org-web-tools")
+    (declare-function org-web-tools--get-first-url "org-web-tools")
+    
+    (defun my/org-insert-url (&optional arg)
+      "Insert a URL into an org-mode document."
+      (interactive "P")
+      (require' org-web-tools)
+      (let ((link (org-web-tools--org-link-for-url
+                   (org-web-tools--get-first-url))))
+        (if arg
+            (progn
+              (org-set-property "URL" link)
+              (message "Added pasteboard link to URL property"))
+          (insert link)))))
+
+  (use-package orgnav)
+
+  (use-package orgtbl-aggregate
+    :config
+    (load "org-insert-dblock"))
+
+  (use-package ox-confluence
+    ;; Export Org files to confluence:
+    ;; M-x org-confluence-export-as-confluence RET
+    ;; https://github.com/emacsmirror/org/blob/master/contrib/lisp/ox-confluence.el
+    :straight f
+    :defer t)
+
+  (use-package ox-jira
+    ;; Transforms Org files to JIRA markup for pasting into JIRA tickets & comments.
+    ;; https://github.com/stig/ox-jira.el
+    :defer t
+    :init
+    (setq org-export-copy-to-kill-ring 'if-interactive))
+
+  (use-package ox-publish
+    :disabled
+    :defer t
+    :commands (my/publish-blog)
+    :preface
+    (defun my/publish-blog ()
+      "Publish my blog"
+      (interactive)
+      (org-publish-project "blog" t))
+    
+    :config
+    (require 'ox-html)
+    (require 'ox-rss)
+
+    (setq org-confirm-babel-evaluate nil
+          org-publish-project-alist '(("blog-content"
+                                       :base-directory "~/personal/markcol/"
+                                       :base-extension "org"
+                                       :recursive t
+                                       :publishing-directory "~/Sites/markcol/"
+                                       :publishing-function (pd-html-publish-to-html)
+                                       :with-toc nil
+                                       :html-html5-fancy t
+                                       :section-numbers nil
+                                       :exclude "rss.org")
+                                      ("blog-static"
+                                       :base-directory "~/personal/markcol/"
+                                       :base-extension "jpg\\|png\\|css\\|js\\|ico\\|gif"
+                                       :recursive t
+                                       :publishing-directory "~/Sites/markcol/"
+                                       :publishing-function org-publish-attachment)
+                                      ("blog-rss"
+                                       :base-directory "~/personal/markcol/"
+                                       :base-extension "org"
+                                       :publishing-directory "~/Sites/markcol/"
+                                       :publishing-function (org-rss-publish-to-rss)
+                                       :html-link-home "~/Sites/markcol/"
+                                       :html-link-use-abs-url t
+                                       :exclude ".*"
+                                       :include ("rss.org")
+                                       :with-toc nil
+                                       :section-numbers nil
+                                       :title "Mark Colburn")
+                                      ("blog"
+                                       :components
+                                       ("blog-content" "blog-static" "blog-rss")))))
+
+  (use-package ox-md
+    :straight f
+    :requires markdown
+    :defer t)
+
+  (use-package ox-pandoc
+    :requires pandoc
+    :defer t)
+
+  (use-package ox-texinfo-plus
+    :straight f
+    :requires texinfo
+    :defer t)
+  
+  :hook (org-export-before-processing . my/delete-org-comments))
 
 (use-package package-lint
   :commands package-lint-current-buffer)
@@ -2049,6 +2598,7 @@ _h_: paragraph
     :straight f
     :after paredit
     :load-path "lisp")
+  
   (require 'eldoc)
   (eldoc-add-command 'paredit-backward-delete
                      'paredit-close-round))
@@ -2065,15 +2615,6 @@ _h_: paragraph
     (require pkg))
   (pdf-tools-install))
 
-(use-package phi-search
-  :defer 5
-  :after (multiple-cursors)
-  :config
-  (use-package phi-search-mc
-    :config
-    (phi-search-mc/setup-keys)
-    :hook (isearch-mode-mode . phi-search-from-isearch-mc/setup-keys)))
-
 (use-package pkgbuild-mode
   :mode "/PKGBULD$")
 
@@ -2087,9 +2628,11 @@ _h_: paragraph
   (defun my/projectile-invalidate-cache (&rest _args)
     ;; We ignore the args to `magit-checkout'.
     (projectile-invalidate-cache nil))
+  
   :init
   (setq projectile-completion-system 'ivy
         projectile-enable-caching nil)
+  
   :config
   (projectile-global-mode)
   (with-eval-after-load 'magit-branch
@@ -2106,6 +2649,7 @@ _h_: paragraph
   (defvar python-mode-initialized nil)
 
   (defun my/python-mode-hook ()
+    "My Python mode customizations."
     (unless python-mode-initialized
       (setq python-mode-initialized t)
 
@@ -2128,7 +2672,6 @@ _h_: paragraph
 
   :hook (python-mode . my/python-mode-hook))
 
-
 (use-package rainbow-delimiters
   :hook (prog-mode . rainbow-delimiters-mode))
 
@@ -2142,6 +2685,7 @@ _h_: paragraph
              recentf-apply-filename-handlers)
   :preface
   (defun recentf-add-dired-directory ()
+    "Add directory directory to the `recentf` list."
     (if (and dired-directory
              (file-directory-p dired-directory)
              (not (string= "/" dired-directory)))
@@ -2155,9 +2699,9 @@ _h_: paragraph
         recentf-max-saved-items 500
         recentf-max-menu-items 15
         recentf-auto-cleanup 'never)
-  :hook (dired-mode . recentf-add-dired-directory)
   :config
-  (recentf-mode 1))
+  (recentf-mode 1)
+  :hook (dired-mode . recentf-add-dired-directory))
 
 (use-package rect
   :straight f
@@ -2186,18 +2730,26 @@ _h_: paragraph
   :interpreter (("node" . rjsx-mode))
   :mode (("\\.js?\\'" . rjsx-mode)
          ("\\.jsx?\\'" . rjsx-mode))
-  :config (progn
-            (electric-indent-mode -1)
-            (setq js2-basic-offset 2
-                  js2-highlight-level 3
-                  js2-bounce-indent-p t
-                  js2-mode-show-strict-warnings nil)))
+  :init
+  (setq js2-basic-offset 2
+        js2-highlight-level 3
+        js2-bounce-indent-p t
+        js2-mode-show-strict-warnings nil)
+  :config
+  (electric-indent-mode -1))
 
 (use-package rust-mode
   :defer t
   :after company
   :mode "\\.rs\\'"
   :preface
+  (defun my/compile-single-rust-file ()
+    "Compile a single rust file."
+    (interactive)
+    (when (and (f-exists? (buffer-name))
+               (f-file? (buffer-name)))
+      (compile (concat "rustc " (buffer-name) " -o " (f-no-ext (buffer-name))))))
+  
   (defun my/rust-mode-hook ()
     "My Rust-mode configuration."
     (flycheck-mode 1)
@@ -2207,16 +2759,7 @@ _h_: paragraph
               ("!=" . (?· (Br . Bl) ?≠))
               ("=>" . (?· (Br . Bl) ?➡))
               ("->" . (?· (Br . Bl) ?→)))
-      (push it prettify-symbols-alist))
-    ;; (local-set-key (kbd "C-c <tab>" . #'rust-format-buffer))
-    )
-
-  (defun my/compile-single-rust-file ()
-    "Compile a single rust file."
-    (interactive)
-    (when (and (f-exists? (buffer-name))
-               (f-file? (buffer-name)))
-      (compile (concat "rustc " (buffer-name) " -o " (f-no-ext (buffer-name))))))
+      (push it prettify-symbols-alist)))
   
   :config
   (use-package cargo
@@ -2242,27 +2785,27 @@ _h_: paragraph
     :disabled
     :unless (featurep 'lsp-mode)
     :if (executable-find "racer")
-    :defines (racer-rust-src-path)
+    :defines (racer-cmd racer-rust-src-path)
+    :init
+    ;; Tell racer to use the rustup managed rust-src
+    (setq racer-cmd              (executable-find "racer")
+          rust-default-toolchain (car (s-split " " (-first
+                                                    (lambda (line) (s-match "default" line))
+                                                    (s-lines (shell-command-to-string "rustup toolchain list")))))
+          rust-src-path          (concat (getenv "HOME") "/.multirust/toolchains/"
+                                         rust-default-toolchain "/lib/rustlib/src/rust/src")
+          rust-bin-path          (concat (getenv "HOME") "/.multirust/toolchains/"
+                                         rust-default-toolchain "/bin")
+          racer-rust-src-path    rust-src-path)
+    
     :config
-    (setq racer-cmd (executable-find "racer"))
-    ;; Tell racer to use the rustup-managed rust-src
-    ;; rustup component add rust-src
-    (setq rust-default-toolchain
-          (car (s-split " " (-first
-                             (lambda (line) (s-match "default" line))
-                             (s-lines (shell-command-to-string "rustup toolchain list"))))))
-    (setq rust-src-path (concat (getenv "HOME") "/.multirust/toolchains/"
-                                rust-default-toolchain "/lib/rustlib/src/rust/src"))
-    (setq rust-bin-path (concat (getenv "HOME") "/.multirust/toolchains/"
-                                rust-default-toolchain "/bin"))
-    (setq racer-rust-src-path rust-src-path)
     (setenv "RUST_SRC_PATH" rust-src-path)
     (setenv "RUSTC" rust-bin-path)
     (with-eval-after-load 'company
       (add-to-list 'company-dabbrev-code-modes 'rust-mode)
       (add-hook 'racer-mode-hook #'company-mode))
-    :hook (rust-mode  . racer-mode)
-    :hook (racer-mode . eldoc-mode))
+    
+    :hook (rust-mode . (racer-mode eldoc-mode)))
 
   :hook (rust-mode . my/rust-mode-hook))
 
@@ -2304,6 +2847,7 @@ _h_: paragraph
     "Start an Emacs server process if one is not already running."
     (unless server-process
       (server-start)))
+  
   :hook (after-init . my/server-enable))
 
 (use-package shell-pop
@@ -2347,24 +2891,8 @@ _h_: paragraph
   (super-save-mode 1)
   (setq super-save-auto-save-when-idle t))
 
-(use-package swiper
-  :diminish ivy-mode
-  :after ivy
-  :bind (:map swiper-map
-              ("M-y" . yank)
-              ("M-%" . swiper-query-replace)
-              ("C-." . swiper-avy)
-              ("M-c" . my/swiper-mc-fixed))
-  :bind (:map isearch-mode-map
-              ("C-o" . swiper-from-isearch))
-  :config
-  (defun my/swiper-mc-fixed ()
-    (interactive)
-    (setq swiper--current-window-start nil)
-    (swiper-mc)))
-
 (use-package systemd
-  :if (not (eq system-type 'windows-nt))
+  :if (not (eq system-type 'windows-nt)) ; only for Unix-based systems
   :defer t
   :after company
   :defines (systemd-use-company-p)
@@ -2374,37 +2902,6 @@ _h_: paragraph
 (use-package term
   :bind (:map term-mode-map
               ("C-c C-y" . term-paste)))
-
-(use-package texinfo
-  :mode ("\\.texi\\'" . texinfo-mode)
-  :preface
-  (defun my/texinfo-mode-hook ()
-    "My Texinfo mode customizations."
-    (dolist (mapping '((?b . "emph")
-                       (?c . "code")
-                       (?s . "samp")
-                       (?d . "dfn")
-                       (?o . "option")
-                       (?x . "pxref")))
-      (local-set-key (vector (list 'alt (car mapping)))
-                     `(lambda () (interactive)
-                        (TeX-insert-macro ,(cdr mapping))))))
-
-  (defun texinfo-outline-level ()
-    "Calculate level of current texinfo outline heading."
-    (require 'texinfo)
-    (save-excursion
-      (if (bobp)
-          0
-        (forward-char 1)
-        (let* ((word (buffer-substring-no-properties
-                      (point) (progn (forward-word) (point))))
-               (entry (assoc word texinfo-section-list)))
-          (if entry
-              (nth 1 entry)
-            5)))))
-
-  :hook (texinfo-mode . my/texinfo-mode-hook))
 
 (use-package tidy
   :commands (tidy-buffer
@@ -2428,12 +2925,12 @@ _h_: paragraph
          ("C-c t M-t"   . treemacs-find-tag))
   :config
   (use-package treemacs-projectile
-    :after projectile
+    :requires projectile
     :defer t
     :config
     (setq treemacs-header-function #'treemacs-projectile-create-header)
     :bind (("C-c t P"    . treemacs-projectile)
-	   ("C-c t p"    . treemacs-projectile-toggle)))
+           ("C-c t p"    . treemacs-projectile-toggle)))
 
   (setq treemacs-change-root-without-asking nil
         treemacs-collapse-dirs              (if (executable-find "python") 3 0)
@@ -2460,11 +2957,11 @@ _h_: paragraph
   (treemacs-filewatch-mode t))
 
 (use-package visual-fill-column
+  :defer t
   :unless noninteractive
   :commands visual-fill-column-mode)
 
 (use-package visual-regexp
-  :unless noninteractive
   :defer t
   :unless noninteractive
   :bind (("C-c r"   . vr/replace)
@@ -2472,6 +2969,7 @@ _h_: paragraph
          ("<C-m> /" . vr/mc-mark)))
 
 (use-package w3m
+  :defer t
   :commands w3m-browse-url)
 
 (use-package web-mode
@@ -2483,6 +2981,7 @@ _h_: paragraph
         web-mode-enable-auto-quoting nil))
 
 (use-package which-func
+  :defer t
   :unless noninteractive
   :hook (c-mode-common . which-function-mode))
 
@@ -2495,6 +2994,7 @@ _h_: paragraph
   (which-key-mode))
 
 (use-package whitespace
+  :defer t
   :diminish (global-whitespace-mode
              whitespace-mode
              whitespace-newline-mode)
@@ -2507,6 +3007,7 @@ _h_: paragraph
 	           whitespace-silent)
   :preface
   (defun normalize-file ()
+    "Cleanup whitespace in a file."
     (interactive)
     (save-excursion
       (goto-char (point-min))
@@ -2523,7 +3024,7 @@ _h_: paragraph
         (save-buffer))))
 
   (defun my/maybe-turn-on-whitespace ()
-    "depending on the file, maybe clean up whitespace."
+    "Cleanup whitespace in a file based on the file type."
     (when (and (not (or (memq major-mode '(markdown-mode))
                         (and buffer-file-name
                              (string-match "\\(\\.texi\\|COMMIT_EDITMSG\\)\\'"
@@ -2587,6 +3088,7 @@ _h_: paragraph
           (windmove-find-other-window 'up))
         (shrink-window arg)
       (enlarge-window arg)))
+  
   :config
   (with-eval-after-load 'hydra
     (bind-key "M-C-u"
@@ -2613,6 +3115,7 @@ _h_: paragraph
   :after prog-mode
   :defer 10
   :diminish yas-minor-mode
+  :mode ("/\\.emacs\\.d/snippets" . snippet-mode)
   :bind (("C-c y a" . yas-reload-all)
          ("C-c y d" . yas-load-directory)
          ("C-c y f" . yas-visit-snippet-file)
@@ -2625,8 +3128,13 @@ _h_: paragraph
          ("C-c y x" . yas-expand))
   :bind (:map yas-keymap
               ("C-i" . yas-next-field-or-maybe-expand))
-  :mode ("/\\.emacs\\.d/snippets" . snippet-mode)
   :config
+  (use-package auto-yasnippet
+    :after yasnippet
+    :bind (("C-c y a" . aya-create)
+           ("C-c y e" . aya-expand)
+           ("C-c y o" . aya-open-line)))
+  
   (yas-load-directory (expand-file-name "snippets" user-emacs-directory))
   (yas-global-mode 1))
 
@@ -2640,7 +3148,8 @@ _h_: paragraph
     (add-to-list 'zeal-at-point-mode-alist '(rust-mode   . "rust"))))
 
 (use-package dash-at-point
-  :if (and (eq system-type 'darwin) (executable-find "dash"))
+  :if (and (eq system-type 'darwin)
+           (executable-find "dash"))
   :defer t
   :config
   (with-eval-after-load 'python
@@ -2666,3 +3175,23 @@ _h_: paragraph
 
 (provide 'init)
 ;;; init.el ends here
+
+(custom-set-variables
+ ;; custom-set-variables was added by Custom.
+ ;; If you edit it by hand, you could mess it up, so be careful.
+ ;; Your init file should contain only one such instance.
+ ;; If there is more than one, they won't work right.
+ '(custom-safe-themes
+   (quote
+    ("3c83b3676d796422704082049fc38b6966bcad960f896669dfc21a7a37a748fa" default)))
+ '(org-agenda-files nil))
+(custom-set-faces
+ ;; custom-set-faces was added by Custom.
+ ;; If you edit it by hand, you could mess it up, so be careful.
+ ;; Your init file should contain only one such instance.
+ ;; If there is more than one, they won't work right.
+ )
+;; Local Variables:
+;;   mode: emacs-lisp
+;;   outline-regexp: "^;;;_\\([,. ]+\\)"
+;; End:
