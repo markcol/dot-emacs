@@ -1,4 +1,4 @@
-;;; init.el -- user customization for Emacs       -*- lexical-binding: t -*-
+;;; init.el -- user customization for Emacs  -*- lexical-binding: t; no-byte-compile: t; -*-
 
 ;;; Commentary:
 ;;;
@@ -1811,6 +1811,51 @@ _h_: paragraph
     (let ((current-prefix-arg '(4)))
       (call-interactively 'magit-status)))
 
+  (require 'dash)
+
+  (defmacro pretty-magit (WORD ICON PROPS &optional NO-PROMPT?)
+    "Replace sanitized WORD with ICON, PROPS and by default add to prompts."
+    `(prog1
+	 (add-to-list 'pretty-magit-alist
+		      (list (rx bow (group ,WORD (eval (if ,NO-PROMPT? "" ":"))))
+			    ,ICON ',PROPS))
+       (unless ,NO-PROMPT?
+	 (add-to-list 'pretty-magit-prompt (concat ,WORD ": ")))))
+
+  (defun add-magit-faces ()
+    "Add face properties and compose symbols for buffer from pretty-magit."
+    (interactive)
+    (with-silent-modifications
+      (--each pretty-magit-alist
+	(-let (((rgx icon props) it))
+	  (save-excursion
+	    (goto-char (point-min))
+	    (while (search-forward-regexp rgx nil t)
+	      (compose-region
+	       (match-beginning 1) (match-end 1) icon)
+	      (when props
+		(add-face-text-property
+		 (match-beginning 1) (match-end 1) props))))))))
+  
+  (defun use-magit-commit-prompt (&rest args)
+    (setq use-magit-commit-prompt-p t))
+
+  (defun magit-commit-prompt ()
+    "Magit prompt and insert commit header with faces."
+    (interactive)
+    (when use-magit-commit-prompt-p
+      (setq use-magit-commit-prompt-p nil)
+      (if (featurep 'ivy)
+	  (insert (ivy-read "Commit Type " pretty-magit-prompt
+			    :require-match t :sort t :preselect "Add: ")))
+      (if (featurep 'helm)
+	  (insert (helm :sources (helm-build-sync-source "Commit Type "
+							 :candidates pretty-magit-prompt)
+			:buffer "*magit cmt prompt*")))
+      (add-magit-faces)
+      (if (featurep 'evil)
+	  (evil-insert 1))))
+  
   :config
   (use-package gist
     :no-require t
@@ -1906,6 +1951,25 @@ _h_: paragraph
       #'magit-push-current-to-upstream ?u t))
   (put 'magit-clean 'dsabled nil)
 
+  (setq pretty-magit-alist nil)
+  (setq pretty-magit-prompt nil)
+  
+  (pretty-magit "Feature" ? (:foreground "slate gray" :height 1.2))
+  (pretty-magit "Add"     ? (:foreground "#375E97" :height 1.2))
+  (pretty-magit "Fix"     ? (:foreground "#FB6542" :height 1.2))
+  (pretty-magit "Clean"   ? (:foreground "#FFBB00" :height 1.2))
+  (pretty-magit "Docs"    ? (:foreground "#3F681C" :height 1.2))
+  (pretty-magit "master"  ? (:box t :height 1.2) t)
+  (pretty-magit "origin"  ? (:box t :height 1.2) t)
+
+  (advice-add 'magit-status :after 'add-magit-faces)
+  (advice-add 'magit-refresh-buffer :after 'add-magit-faces)
+
+  (setq use-magit-commit-prompt-p nil)
+  (remove-hook 'git-commit-setup-hook 'with-editor-usage-message)
+  (advice-add 'magit-commit :after 'use-magit-commit-prompt)
+
+  :hook (git-comit-setup       . magit-commit-prompt)
   :hook (magit-mode            . hl-line-mode)
   :hook (magit-status-mode     . (lambda () (my/magit-monitor t))))
 
@@ -2736,18 +2800,23 @@ _h_: paragraph
 
 (use-package rjsx-mode
   :interpreter (("node" . rjsx-mode))
-  :mode (("\\.js?\\'" . rjsx-mode)
-         ("\\.jsx?\\'" . rjsx-mode))
+  :mode (("\\.js?\\'"   . rjsx-mode)
+         ("\\.jsx?\\'"  . rjsx-mode))
+  :preface
+  (defun my/rjxs-mode-hook ()
+    "My rjxs-mode customizations."
+    (electric-indent-mode 1)
+    (aggresive-indent-mode 1))
+  
   :init
   (setq js2-basic-offset 2
         js2-highlight-level 3
         js2-bounce-indent-p t
         js2-mode-show-strict-warnings nil)
-  :config
-  (electric-indent-mode -1))
+  
+  :hook (rjxs-mode . my/rjxs-mode-hook))
 
 (use-package rust-mode
-  :after company
   :mode "\\.rs\\'"
   :preface
   (defun my/compile-single-rust-file ()
@@ -2786,6 +2855,7 @@ _h_: paragraph
         ("r"  cargo-process-run           "run")
         ("y"  cargo-process-clippy        "clippy"))
       (general-define-key :keymaps 'rust-mode-map :states 'normal "c" #'hydra-cargo/body))
+    
     :hook (rust-mode . cargo-minor-mode))
 
   (use-package racer
