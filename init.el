@@ -103,9 +103,11 @@
         tab-width 2
         css-indent-offset 2
         load-prefer-newer t
-	      auto-window-vscroll nil
+        auto-window-vscroll nil
         mouse-drag-copy-region t
         echo-keystrokes 0.1)
+
+  (setq browse-url-browser-function 'browse-url-chromium)
   
   ;; nice scrolling
   (setq scroll-margin 0
@@ -341,9 +343,8 @@
   :unless noninteractive)
 
 (use-package all-the-icons
-  :unless noninteractive
-  :defer t
-  :if (display-graphic-p))
+  :if (display-graphic-p)
+  :defer t)
 
 (use-package spaceline
   :unless noninteractive
@@ -355,8 +356,21 @@
   (spaceline-emacs-theme))
 
 (setq default-frame-alist '((height . 58)
-                            (width  . 136)
-                            (font   . "Fantasque Sans Mono-12")))
+			    (width  . 136)
+			    (font   . "Fantasque Sans Mono-12")))
+
+(defun my/ui-settings (&rest frame)
+  "Setup the UI settings for a newly created `frame`."
+  (let ((f (or (car frame) (selected-frame))))
+    (when (display-graphic-p)
+      (set-frame-size f 136 58)
+      ;; Keep the frame size, but apply font to all frames.
+      (set-frame-font "Fantasque Sans Mono-12" nil t)
+      (load-theme 'afternoon-theme t)
+      (setq powerline-default-separator 'arrow-fade)
+      (spaceline-emacs-theme))))
+
+(add-hook 'after-make-frame-functions #'my/ui-settings t)
 
 ;;;
 ;;; Packages
@@ -519,10 +533,20 @@
 
 (use-package anzu
   :commands (global-anzu-mode)
-  :bind (("M-%"   . anzu-query-replace)
-         ("M-S-%" . anzu-query-replace-regexp))
+  :bind (([remap query-replace] . anzu-query-replace)
+         ([remap query-replace-regexp] . anzu-query-replace-regexp))
+  :bind (:map isearch-mode-map
+	      ([remap isearch-query-replace]  . anzu-isearch-query-replace)
+	      ([remap isearch-query-replace-regexp]  . anzu-isearch-query-replace-regexp))
+  :init
+  (setq anzu-mode-lighter ""
+	anzu-deactivate-region t
+	anzu-search-threshold 1000
+	anzu-replace-threshold 50
+	anzu-replace-to-string-separator " => ")
   :config
-  (global-anzu-mode))
+  (global-anzu-mode +1))
+
 
 (use-package auto-compile
   :demand t
@@ -1362,7 +1386,8 @@ _h_: paragraph
     (haskell-indentation-mode)
     (interactive-haskell-mode)
     (diminish 'interactive-haskell-mode)
-    (flycheck-mode 1)
+    (if (featurep 'flycheck)
+	(flycheck-mode 1))
     (setq-local prettify-symbols-alist haskell-prettify-symbols-alist)
     (prettify-symbols-mode 1)
     (bug-reference-prog-mode 1))
@@ -1571,7 +1596,6 @@ _h_: paragraph
 (use-package ivy
   :defer 5
   :diminish
-
   :bind (("C-x b" . ivy-switch-buffer)
          ("C-x B" . ivy-switch-buffer-other-window)
          ("M-H"   . ivy-resume))
@@ -2096,7 +2120,6 @@ _h_: paragraph
       :requires (multiple-cursors)
       :config 
       (phi-search-mc/setup-keys)
-      
       :hook (isearch-mode-mode . phi-search-from-isearch-mc/setup-keys))
     ))
 
@@ -2140,7 +2163,7 @@ _h_: paragraph
     "Remove comments from org document.
   For use with export hook."
     (loop for comment in (reverse (org-element-map (org-element-parse-buffer)
-						   'comment 'identity))
+                                                   'comment 'identity))
           do
           (setf (buffer-substring (org-element-property :begin comment)
                                   (org-element-property :end comment))
@@ -2216,43 +2239,45 @@ _h_: paragraph
   
   :init
   (load "org-settings" :noerror)
-  (setq org-directory user-org-directory
-	org-enforce-todo-dependencies t
-	org-fast-tag-selection-single-key 'expert
-	org-footnote-auto-adjust nil
-	org-footnote-define-inline t
-	org-hide-leading-stars t
-	org-highlight-latex-and-related '(latex)
-	org-log-into-drawer "LOGBOOK"
-	org-outline-path-complete-in-steps t
-	org-refile-targets '((org-agenda-files :maxlevel . 3) (nil :maxlevel . 3))
-	org-refile-use-outline-path 'file
-	org-tag-alist '((:startgroup . nil)
-			("@call" . ?c)
-			("@office" . ?o)
-			("@home" . ?h)
-			("@read" . ?r)
-			("@computer" . ?m)
-			("@dev" . ?d)
-			("@write" . ?w)
-			(:endgroup . nil)
-			("REFILE" . ?f)
-			("SOMEDAY" . ?s)
-			("PROJECT" . ?p))
-	org-tags-exclude-from-inheritance '("@call"
-					    "@office"
-					    "@home"
-					    "@read"
-					    "@computer"
-					    "@dev"
-					    "@write"
-					    "PROJECT")
-	org-todo-keywords '((sequence "TODO(t)" "|" "DONE(d!)")
-			    (sequence "WAITING(w@/!)" "|" "CANCELLED" "DELEGATED(e@)"))
-	org-use-fast-todo-selection t
-	org-use-speed-commands t
-	org-use-sub-superscripts "{}"
-	org-use-tag-inheritance t)
+  (setq
+   org-M-RET-may-split-line nil
+   org-directory user-org-directory
+   org-enforce-todo-dependencies t
+   org-fast-tag-selection-single-key 'expert
+   org-footnote-auto-adjust nil
+   org-footnote-define-inline t
+   org-hide-leading-stars t
+   org-highlight-latex-and-related '(latex)
+   org-log-into-drawer "LOGBOOK"
+   org-outline-path-complete-in-steps t
+   org-refile-targets '((org-agenda-files :maxlevel . 3) (nil :maxlevel . 3))
+   org-refile-use-outline-path 'file
+   org-tag-alist '((:startgroup . nil)
+                   ("@call" . ?c)
+                   ("@office" . ?o)
+                   ("@home" . ?h)
+                   ("@read" . ?r)
+                   ("@computer" . ?m)
+                   ("@dev" . ?d)
+                   ("@write" . ?w)
+                   (:endgroup . nil)
+                   ("REFILE" . ?f)
+                   ("SOMEDAY" . ?s)
+                   ("PROJECT" . ?p))
+   org-tags-exclude-from-inheritance '("@call"
+                                       "@office"
+                                       "@home"
+                                       "@read"
+                                       "@computer"
+                                       "@dev"
+                                       "@write"
+                                       "PROJECT")
+   org-todo-keywords '((sequence "TODO(t)" "|" "DONE(d!)")
+                       (sequence "WAITING(w@/!)" "|" "CANCELLED" "DELEGATED(e@)"))
+   org-use-fast-todo-selection t
+   org-use-speed-commands t
+   org-use-sub-superscripts "{}"
+   org-use-tag-inheritance t)
   
   :config
   (use-package org-agenda
@@ -2384,8 +2409,8 @@ _h_: paragraph
 
   (use-package org-capture
     :straight f	
-    :bind (("C-c r"  . org-capture)
-           ("C-9"    . my/org-capture-todo))
+    :bind (("C-c r" . org-capture)
+           ("C-9"   . my/org-capture-todo))
     :preface
     (defun my/org-capture-todo ()
       "Capture a TODO action in `org-mode`."
@@ -2432,6 +2457,15 @@ _h_: paragraph
        (sql        . t)
        (sqlite     . t)
        )))
+
+  (use-package org-bullets
+    :preface
+    (defun enable-org-bullets-mode ()
+      "Turn on org-bullets-mode."
+      ((org-bullets-mode +1)))
+    :config
+    (setq org-ellipsis "…")
+    :hook (org-mode . enable-org-bullets-mode))
 
   (use-package org-noter
     :commands org-noter)
@@ -2689,20 +2723,36 @@ _h_: paragraph
   (defun my/projectile-invalidate-cache (&rest _args)
     ;; We ignore the args to `magit-checkout'.
     (projectile-invalidate-cache nil))
-  
+
+  ;; My answer to question to in http://www.reddit.com/r/emacs about creating an org directory
+  ;; when switching to a projectile project to take notes for the project.
+  ;; https://www.reddit.com/r/emacs/comments/8fze69/possible_to_configure_orgmode_capture_to_always/?st=jgmcmd5a&sh=bf6b15dd
+  (defun my/set-projectile-org-notes ()
+    "Create an org directory and open 'notes.org' file When switching to a Projectile project."
+    (when (projectile-project-root)
+      (let ((project-org-dir (expand-file-name "org" (projectile-project-root))))
+        (unless (file-directory-p project-org-dir)
+          (message "Creating org directory for project %s..." project-org-dir)
+          (make-directory project-org-dir))
+        (find-file-other-window (expand-file-name "notes.org" project-org-dir)))))
+
   :config
-  (setq projectile-enable-caching      nil
-	projectile-known-projects-file (expand-file-name "projectile-bookmarks.eld" user-data-directory)
-	projectile-cache-file          (expand-file-name "projectile.cache" user-data-directory))
+  (setq projectile-enable-caching      t
+        projectile-known-projects-file (expand-file-name "projectile-bookmarks.eld" user-data-directory)
+        projectile-cache-file          (expand-file-name "projectile.cache" user-data-directory))
   
-  (projectile-global-mode)
+  (projectile-global-mode +1)
   
   (with-eval-after-load 'ivy
     (setq projectile-completion-system 'ivy))
+  (with-eval-after-load 'helm
+    (setq projectile-completion-system 'helm))
   
   (with-eval-after-load 'magit-branch
     (advice-add 'magit-checkout :after #'my/projectile-invalidate-cache)
-    (advice-add 'magit-branch-and-checkout :after #'my/projectile-invalidate-cache)))
+    (advice-add 'magit-branch-and-checkout :after #'my/projectile-invalidate-cache))
+
+  :hook (projectile-after-switch-project . my/set-projectile-org-notes))
 
 (use-package python-mode
   :mode "\\.py\\'"
@@ -2828,7 +2878,8 @@ _h_: paragraph
   
   (defun my/rust-mode-hook ()
     "My Rust-mode configuration."
-    (flycheck-mode 1)
+    (when (featurep 'flycheck)
+      (flycheck-mode 1))
     (setq-local fill-column 100)
     (--each '((">=" . (?· (Br . Bl) ?≥))
               ("<=" . (?· (Br . Bl) ?≤))
@@ -3208,7 +3259,7 @@ _h_: paragraph
          ("C-c y l" . yas-describe-tables)
          ("C-c y m" . yas-minor-mode)
          ("C-c y n" . yas-new-snippet)
-	 ("C-c y t" . yas-tryout-snippet)
+         ("C-c y t" . yas-tryout-snippet)
          ("C-c y x" . yas-expand))
   :bind (:map yas-keymap
               ("C-i" . yas-next-field-or-maybe-expand))
@@ -3222,24 +3273,27 @@ _h_: paragraph
   (yas-load-directory (expand-file-name "snippets" user-emacs-directory))
   (yas-global-mode 1))
 
+(defun add-mode-docs (mode docs)
+  (with-eval-after-load mode
+    (add-to-list
+     (if (not (eq system-type 'darwin)) 'zeal-at-point-mode-alist 'dash-at-point-mode-alist)
+     (quote (mode . docs)))))
+
 (use-package zeal-at-point
-  :if (executable-find "zeal")
+  :if (and (not (eq system-type 'darwin)) (executable-find "zeal"))
   :defer t
   :config
-  (with-eval-after-load 'python
-    (add-to-list 'zeal-at-point-mode-alist '(python-mode . "python")))
-  (with-eval-after-load 'rust
-    (add-to-list 'zeal-at-point-mode-alist '(rust-mode   . "rust"))))
+  (add-mode-docs 'haskell-mode "haskell")
+  (add-mode-docs 'python-mode  "python")
+  (add-mode-docs 'rust-mode    "rust"))
 
 (use-package dash-at-point
-  :if (and (eq system-type 'darwin)
-           (executable-find "dash"))
+  :if (and (eq system-type 'darwin) (executable-find "dash"))
   :defer t
   :config
-  (with-eval-after-load 'python
-    (add-to-list 'dash-at-point-mode-alist '(python-mode . "python")))
-  (with-eval-after-load 'rust
-    (add-to-list 'dash-at-point-mode-alist '(rust-mode   . "rust"))))
+  (add-mode-docs 'haskell-mode "haskell")
+  (add-mode-docs 'python-mode  "python")
+  (add-mode-docs 'rust-mode    "rust"))
 
 ;;;
 ;;; Finalization
@@ -3260,21 +3314,6 @@ _h_: paragraph
 (provide 'init)
 ;;; init.el ends here
 
-(custom-set-variables
- ;; custom-set-variables was added by Custom.
- ;; If you edit it by hand, you could mess it up, so be careful.
- ;; Your init file should contain only one such instance.
- ;; If there is more than one, they won't work right.
- '(custom-safe-themes
-   (quote
-    ("3c83b3676d796422704082049fc38b6966bcad960f896669dfc21a7a37a748fa" default)))
- '(org-agenda-files nil))
-(custom-set-faces
- ;; custom-set-faces was added by Custom.
- ;; If you edit it by hand, you could mess it up, so be careful.
- ;; Your init file should contain only one such instance.
- ;; If there is more than one, they won't work right.
- )
 ;; Local Variables:
 ;;   mode: emacs-lisp
 ;;   outline-regexp: "^;;;_\\([,. ]+\\)"
