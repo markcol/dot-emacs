@@ -1152,6 +1152,8 @@
   :hook ((emacs-lisp-mode lisp-interaction-mode) . (lambda ()
 						     (bind-key "\C-c\C-v" erefactor-map emacs-lisp-mode-map))))
 
+(use-package esup)
+
 (use-package etags
   :bind ("M-T" . tags-search))
 
