@@ -1363,7 +1363,7 @@ _h_: paragraph
   (setenv "GOPATH" (expand-file-name "go" (getenv "HOME")))
   (setq go-path-bin (expand-file-name "bin" (getenv "GOPATH")))
   (when (not (file-directory-p go-path-bin))
-    (make-directory go-path-bin) t)
+    (make-directory go-path-bin t))
   (setenv "PATH" (concat (getenv "PATH") ":" go-path-bin))
   (setq exec-path (append exec-path go-path-bin))
   (when (file-directory-p "/usr/local/opt/go/libexec/bin")
@@ -1371,8 +1371,9 @@ _h_: paragraph
     (setq exec-path (append exec-path '("/usr/local/opt/go/libexec/bin"))))
   (when (executable-find "goimports")
     (setq gofmt-command "goimports"))
-  (load-file "$GOPATH/src/golang.org/x/tools/cmd/oracle/oracle.el" :noerror)
-  (load-file "$GOPATH/src/golang.org/x/tools/refactor/rename/rename.el" :noerror)
+  (load (expand-file-name "src/golang.org/x/tools/cmd/oracle/oracle.el" (getenv "GOPATH"))  :noerror)
+  (load (expand-file-name "src/golang.org/x/tools/refactor/rename/rename.el" (getenv "GOPATH"))  :noerror)
+  
   :hook (go-mode . my/go-mode-config)
   :hook (before-save . gofmt-before-save))
 
@@ -3175,8 +3176,8 @@ _h_: paragraph
               ("M-l"   . slime-selector))
   :init
   (if (executable-find "clisp")
-      (setq inferior-lisp-program "clisp"
-            slime-contribs '(slime-fancy)))
+      g      (setq inferior-lisp-program "clisp"
+                   slime-contribs '(slime-fancy)))
   :config
   (use-package cldoc
     :hook ((lisp-mode ilisp-mode slime-repl-mode) . turn-on-cldoc-mode)))
