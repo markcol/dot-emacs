@@ -44,6 +44,40 @@
         (goto-char (point-max))
         (eval-print-last-sexp)))
     (load bootstrap-file nil 'nomessage))
+
+  (defun my/reload-init ()
+    "Reload init.el using straight.el's transaction system."
+    (interactive)
+    (straight-transaction
+      (straight-mark-transaction-as-init)
+      (message "Reloading init.el...")
+      (load user-init-file nil 'nomessage)
+      (message "Reloading init.el... done.")))
+
+  (defun my/eval-buffer ()
+    "Evaluate current buffer with straight.el's transaction system."
+    (interactive)
+    (message "Evaluating %s..." (buffer-name))
+    (straight-transaction
+      (if (null buffer-file-name)
+          (eval-buffer)
+	      (when (string= buffer-file-name user-init-file)
+          (straight-mark-transaction-as-init))
+	      (load-file buffer-file-name)))
+    (message "Evaluating %s... done." (buffer-name)))
+
+  ;; There is one final user-facing note about the transaction system,
+  ;; which is important when you want to load your init-file after
+  ;; Emacs init has already completed, but before straight.el has been
+  ;; loaded (so you cannot just wrap the call in
+  ;; straight-transaction). To cover this edge case (which arises, for
+  ;; example, when you wish to profile your init-file using something
+  ;; like esup), you should use the following pattern:
+  ;;
+  ;; (unwind-protect
+  ;;     (let ((straight-treat-as-init t))
+  ;; 	"load your init-file here")
+  ;;   (straight-finalize-transaction))
   
   ;; Use straight.el to load missing packages for `use-package` by default.
   (setq straight-use-package-by-default t)
@@ -470,6 +504,7 @@
     :mode ("\\.texi\\'" . texinfo-mode)
     :requires auctex
     :preface
+    :preface
     (defun my/texinfo-mode-hook ()
       "My Texinfo mode customizations."
       (dolist (mapping '((?b . "emph")
@@ -478,7 +513,7 @@
                          (?d . "dfn")
                          (?o . "option")
                          (?x . "pxref")))
-        (local-set-key (vector (list 'alt (car mapping)))
+        (local-set-key (vector (list 'alt (car mapping))) 
                        `(lambda () (interactive)
                           (TeX-insert-macro ,(cdr mapping))))))
 
@@ -528,7 +563,9 @@
     "Return a list of all password store entries."
     (let ((store-dir (getenv "PASSWORD_STORE_DIR")))
       (mapcar
-       (lambda (file) (file-name-sans-extension (file-relative-name file store-dir)))
+       (lambda (file)
+	 (file-name-sans-extension
+	  (file-relative-name file store-dir)))
        (directory-files-recursively store-dir "\.gpg$")))))
 
 (use-package anzu
@@ -574,27 +611,41 @@
          ("M-Z" . avy-zap-up-to-char-dwim)))
 
 (use-package bm
+  ;;; Visual bookmarks for emacs.
+  ;;; https://github.com/joodland/bm
+  :demand t
   :bind (("C-c b b" . bm-toggle)
          ("C-c b n" . bm-next)
          ("C-c b p" . bm-previous))
+  :defines (bm-repository-file)
   :commands (bm-repository-load
              bm-buffer-save
              bm-buffer-save-all
              bm-buffer-restore)
-  :hook (after-init        . bm-repository-load)
-  :hook (find-file-hooks   . bm-buffer-restore)
-  :hook (after-revert      . bm-buffer-restore)
-  :hook (kill-buffer       . bm-buffer-save)
-  :hook (after-save        . bm-buffer-save)
-  :hook (vc-before-checkin . bm-buffer-save)
-  :hook (kill-emacs        . (lambda ()
-                               (bm-buffer-save-all)
-                               (bm-repository-save))))
+  :preface
+  (defun my/bm-save-all-buffers ()
+    "Save all buffers and update the bm repository.
+  Used as hook function for `kill-emacs-hook`, because
+  `kill-buffer-hook` is not called when Emacs is killed."
+    (bm-buffer-save-all)
+    (bm-repository-save))
+  :init
+  ;; Restore on load (even before you require bm)
+  (setq bm-restore-repository-on-load t)
+  :config
+  ;; Where to store persistant files.
+  (setq bm-repository-file (expand-file-name "bm-repository" user-data-directory))
+  
+  ;; If you would like to cycle through bookmarks in all open buffers, uncomment the following line:
+  ;; (setq bm-cycle-all-buffers t)
+  
+  ;; Save bookmarks.
+  (setq-default bm-buffer-persistence t)
 
-(use-package bookmark+
-  :after bookmark
-  :bind ("M-B" . bookmark-bmenu-list)
-  :commands bmkp-jump-dired)
+  :hook (after-init . bm-repository-load)
+  :hook ((find-file-hooks after-revert) . bm-buffer-restore)
+  :hook ((kill-buffer after-save vc-before-checkin) . bm-buffer-save)
+  :hook (kill-emacs . my/bm-save-all-buffers))
 
 (use-package bytecomp-simplify
   :defer 15)
@@ -1035,7 +1086,8 @@
   :if window-system
   :defer 5
   :config
-  (edit-server-start))
+  (when (not (process-status "edit-server"))
+    (edit-server-start)))
 
 (use-package edit-var
   :straight f
@@ -1050,36 +1102,6 @@
   :straight f
   :diminish
   :hook ((c-mode-common emacs-lisp-mode) . eldoc-mode))
-
-(use-package elint
-  :commands (elint-initialize elint-current-buffer)
-  :bind ("C-c e E" . my/elint-current-buffer)
-  :preface
-  (defun my/elint-current-buffer ()
-    (interactive)
-    (elint-initialize)
-    (elint-current-buffer))
-  :config
-  (add-to-list 'elint-standard-variables 'current-prefix-arg)
-  (add-to-list 'elint-standard-variables 'command-line-args-left)
-  (add-to-list 'elint-standard-variables 'buffer-file-coding-system)
-  (add-to-list 'elint-standard-variables 'emacs-major-version)
-  (add-to-list 'elint-standard-variables 'window-system))
-
-(use-package elisp-depend
-  :commands elisp-depend-print-dependencies)
-
-(use-package elisp-docstring-mode
-  :commands elisp-docstring-mode)
-
-(use-package elisp-slime-nav
-  :diminish
-  :commands (elisp-slime-nav-mode
-             elisp-slime-nav-find-elisp-thing-at-point))
-
-(use-package elmacro
-  :bind (("C-c m e" . elmacro-mode)
-         ("C-x C-)" . elmacro-show-last-macro)))
 
 (use-package emmet-mode
   :defer t
@@ -1287,6 +1309,7 @@ _h_: paragraph
          ("C-c b ." . goto-last-change-reverse)))
 
 (use-package graphviz-dot-mode
+  ;; :ensure-system-package graphviz
   :mode "\\.dot\\'")
 
 (use-package grep
@@ -1297,10 +1320,14 @@ _h_: paragraph
          ("M-s d" . find-grep-dired)))
 
 (use-package haskell-mode
+  :if (not (eq system-type 'windows)) 
+  ;; :ensure-system-package
+  ;; ((stack .  "wget -qO- https://get.haskellstack.org/ | sh")
+  ;;  (hoogle . "stack install hoogle"))
   :defines (haskell-process-reload-with-fbytecode)
   :mode (("\\.hs\\(c\\|-boot\\)?\\'" . haskell-mode)
-         ("\\.lhs\\'" . literate-haskell-mode)
-         ("\\.cabal\\'" . haskell-cabal-mode))
+	 ("\\.lhs\\'" . literate-haskell-mode)
+	 ("\\.cabal\\'" . haskell-cabal-mode))
   :bind (:map haskell-mode-map
               ("C-c C-h" . my/haskell-hoogle)
               ("C-c C-," . haskell-navigate-imports)
@@ -1334,11 +1361,11 @@ _h_: paragraph
                           nil nil def)
              current-prefix-arg)))
     (unless (and hoogle-server-process
-                 (process-live-p hoogle-server-process))
+		 (process-live-p hoogle-server-process))
       (message "Starting local Hoogle server on port 8687...")
       (with-current-buffer (get-buffer-create " *hoogle-web*")
-        (cd temporary-file-directory)
-        (setq hoogle-server-process
+	(cd temporary-file-directory)
+	(setq hoogle-server-process
               (start-process "hoogle-web" (current-buffer) "hoogle"
                              "server" "--local" "--port=8687")))
       (message "Starting local Hoogle server on port 8687...done"))
@@ -1367,7 +1394,6 @@ _h_: paragraph
       (">="     . ?≥)
       ("<<<"    . ?⋘)
       (">>>"    . ?⋙)
-
       ("`elem`"             . ?∈)
       ("`notElem`"          . ?∉)
       ("`member`"           . ?∈)
@@ -1398,26 +1424,26 @@ _h_: paragraph
   actual Emacs buffer of the module being loaded."
     (when (get-buffer (format "*%s:splices*" (haskell-session-name session)))
       (with-current-buffer (haskell-interactive-mode-splices-buffer session)
-        (erase-buffer)))
+	(erase-buffer)))
     (let* ((ok (cond
-                ((haskell-process-consume
+		((haskell-process-consume
                   process
                   "Ok, \\(?:\\([0-9]+\\|one\\)\\) modules? loaded\\.$")
-                 t)
-                ((haskell-process-consume
+		 t)
+		((haskell-process-consume
                   process
                   "Failed, \\(?:[0-9]+\\) modules? loaded\\.$")
-                 nil)
-                ((haskell-process-consume
+		 nil)
+		((haskell-process-consume
                   process
                   "Ok, modules loaded: \\(.+\\)\\.$")
-                 t)
-                ((haskell-process-consume
+		 t)
+		((haskell-process-consume
                   process
                   "Failed, modules loaded: \\(.+\\)\\.$")
-                 nil)
-                (t
-                 (error (message "Unexpected response from haskell process.")))))
+		 nil)
+		(t
+		 (error (message "Unexpected response from haskell process.")))))
            (modules (haskell-process-extract-modules buffer))
            (cursor (haskell-process-response-cursor process))
            (warning-count 0))
@@ -1425,17 +1451,17 @@ _h_: paragraph
       (haskell-check-remove-overlays module-buffer)
       (while
           (haskell-process-errors-warnings module-buffer session process buffer)
-        (setq warning-count (1+ warning-count)))
+	(setq warning-count (1+ warning-count)))
       (haskell-process-set-response-cursor process cursor)
       (if (and (not reload)
                haskell-process-reload-with-fbytecode)
           (haskell-process-reload-with-fbytecode process module-buffer)
-        (haskell-process-import-modules process (car modules)))
+	(haskell-process-import-modules process (car modules)))
       (if ok
           (haskell-mode-message-line (if reload "Reloaded OK." "OK."))
-        (haskell-interactive-mode-compile-error session "Compilation failed."))
+	(haskell-interactive-mode-compile-error session "Compilation failed."))
       (when cont
-        (condition-case-unless-debug e
+	(condition-case-unless-debug e
             (funcall cont ok)
           (error (message "%S" e))
           (quit nil)))))
@@ -1452,8 +1478,8 @@ _h_: paragraph
       (cl-mapcan
        #'(lambda (lib) (directory-files lib t "^ghc-"))
        (cl-mapcan
-        #'(lambda (lib) (directory-files lib t "^elpa$"))
-        (filter (apply-partially #'string-match "-emacs-ghc-") load-path))))
+	#'(lambda (lib) (directory-files lib t "^elpa$"))
+	(filter (apply-partially #'string-match "-emacs-ghc-") load-path))))
     :commands ghc-init
     :config
     (setenv "cabal_helper_libexecdir"
@@ -1466,12 +1492,11 @@ _h_: paragraph
     :straight f
     :load-path "lisp/haskell-config"
     :bind (:map haskell-mode-map
-                ("C-c M-q" . haskell-edit-reformat)))
+		("C-c M-q" . haskell-edit-reformat)))
 
   (use-package hindent-mode
     :straight (:host github :repo "commercialhaskell/hindent")
     :hook (haskell-mode . hindent-mode))
-
   (eval-after-load 'align
     '(nconc
       align-rules-list
@@ -1480,11 +1505,12 @@ _h_: paragraph
                     (regexp . ,(cdr x))
                     (modes quote (haskell-mode literate-haskell-mode))))
               '((haskell-types       . "\\(\\s-+\\)\\(::\\|∷\\)\\s-+")
-                (haskell-assignment  . "\\(\\s-+\\)=\\s-+")
-                (haskell-arrows      . "\\(\\s-+\\)\\(->\\|→\\)\\s-+")
-                (haskell-left-arrows . "\\(\\s-+\\)\\(<-\\|←\\)\\s-+")))))
+		(haskell-assignment  . "\\(\\s-+\\)=\\s-+")
+		(haskell-arrows      . "\\(\\s-+\\)\\(->\\|→\\)\\s-+")
+		(haskell-left-arrows . "\\(\\s-+\\)\\(<-\\|←\\)\\s-+")))))
 
   :hook (haskell-mode . my/haskell-mode-hook))
+
 
 (use-package hydra
   :defer t
@@ -1746,9 +1772,17 @@ _h_: paragraph
 
 (use-package lisp-mode
   :straight f
-  :defer t
-  :hook ((emacs-lisp-mode lisp-mode)
-         . (lambda () (add-hook 'after-save-hook 'check-parens nil t)))
+  :preface
+  (defun my/lisp-mode-hook ()
+    "My Lisp mode customizations"
+    (abbrev-mode +1)
+    (paredit-mode +1)
+    (with-eval-after-load 'aggressive-indent-mode
+      (aggressive-indent-mode +1))
+    (add-to-list 'imenu-generic-expression
+                 '("Used Packages"
+                   "\\(^\\s-*(use-package +\\)\\(\\_<.+\\_>\\)" 2))
+    )
   :init
   (dolist (mode '(ielm-mode
                   inferior-emacs-lisp-mode
@@ -1761,7 +1795,40 @@ _h_: paragraph
      '(("(\\(ert-deftest\\)\\>[         '(]*\\(setf[    ]+\\sw+\\|\\sw+\\)?"
         (1 font-lock-keyword-face)
         (2 font-lock-function-name-face
-           nil t))))))
+           nil t)))))
+  :config
+  (use-package elint
+    :commands (elint-initialize elint-current-buffer)
+    :bind ("C-c e E" . my/elint-current-buffer)
+    :preface
+    (defun my/elint-current-buffer ()
+      (interactive)
+      (elint-initialize)
+      (elint-current-buffer))
+    :config
+    (add-to-list 'elint-standard-variables 'current-prefix-arg)
+    (add-to-list 'elint-standard-variables 'command-line-args-left)
+    (add-to-list 'elint-standard-variables 'buffer-file-coding-system)
+    (add-to-list 'elint-standard-variables 'emacs-major-version)
+    (add-to-list 'elint-standard-variables 'window-system))
+
+  (use-package elisp-depend
+    :commands elisp-depend-print-dependencies)
+
+  (use-package elisp-docstring-mode
+    :commands elisp-docstring-mode)
+
+  (use-package elisp-slime-nav
+    :diminish
+    :commands (elisp-slime-nav-mode
+               elisp-slime-nav-find-elisp-thing-at-point))
+
+  (use-package elmacro
+    :bind (("C-c m e" . elmacro-mode)
+           ("C-x C-)" . elmacro-show-last-macro)))
+
+  :hook ((emacs-lisp-mode lisp-mode) . my/lisp-mode-hook)
+  :hook ((emacs-lisp-mode lisp-mode) . check-parens))
 
 (use-package lsp-haskell
   ;; https://github.com/emacs-lsp/lsp-haskell
@@ -1880,7 +1947,7 @@ _h_: paragraph
       (if (featurep 'evil)
 	  (evil-insert 1))))
   
-  :config
+  :init
   (use-package gist
     :no-require t
     :bind ("C-c G" . my/gist-region-or-buffer)
@@ -1964,15 +2031,15 @@ _h_: paragraph
          (or my/ghub-token-cache
              (setq my/ghub-token-cache
                    (funcall orig-func host username package nocreate forge))))))
-
+  :config
   (with-eval-after-load 'magit-remote
     (magit-define-popup-action 'magit-fetch-popup
-      ?f 'magit-get-remote #'magit-fetch-from-upstream ?u t)
+			       ?f 'magit-get-remote #'magit-fetch-from-upstream ?u t)
     (magit-define-popup-action 'magit-pull-popup
-      ?F 'magit-get-upstream-branch #'magit-pull-from-upstream ?u t)
+			       ?F 'magit-get-upstream-branch #'magit-pull-from-upstream ?u t)
     (magit-define-popup-action 'magit-push-popup
-      ?P 'magit--push-current-to-upstream-desc
-      #'magit-push-current-to-upstream ?u t))
+			       ?P 'magit--push-current-to-upstream-desc
+			       #'magit-push-current-to-upstream ?u t))
   (put 'magit-clean 'dsabled nil)
 
   (setq pretty-magit-alist nil)
@@ -2089,7 +2156,7 @@ _h_: paragraph
               ("Y"   . mc/mark-previous-symbol-like-this)
               ("w"   . mc/mark-next-word-like-this)
               ("W"   . mc/mark-previous-word-like-this))
-  :config
+  :init
   (use-package mc-extras
     :requires (multiple-cursors)
     :bind (("<C-m> M-C-f" . mc/mark-next-sexps)
@@ -2239,45 +2306,44 @@ _h_: paragraph
   
   :init
   (load "org-settings" :noerror)
-  (setq
-   org-M-RET-may-split-line nil
-   org-directory user-org-directory
-   org-enforce-todo-dependencies t
-   org-fast-tag-selection-single-key 'expert
-   org-footnote-auto-adjust nil
-   org-footnote-define-inline t
-   org-hide-leading-stars t
-   org-highlight-latex-and-related '(latex)
-   org-log-into-drawer "LOGBOOK"
-   org-outline-path-complete-in-steps t
-   org-refile-targets '((org-agenda-files :maxlevel . 3) (nil :maxlevel . 3))
-   org-refile-use-outline-path 'file
-   org-tag-alist '((:startgroup . nil)
-                   ("@call" . ?c)
-                   ("@office" . ?o)
-                   ("@home" . ?h)
-                   ("@read" . ?r)
-                   ("@computer" . ?m)
-                   ("@dev" . ?d)
-                   ("@write" . ?w)
-                   (:endgroup . nil)
-                   ("REFILE" . ?f)
-                   ("SOMEDAY" . ?s)
-                   ("PROJECT" . ?p))
-   org-tags-exclude-from-inheritance '("@call"
-                                       "@office"
-                                       "@home"
-                                       "@read"
-                                       "@computer"
-                                       "@dev"
-                                       "@write"
-                                       "PROJECT")
-   org-todo-keywords '((sequence "TODO(t)" "|" "DONE(d!)")
-                       (sequence "WAITING(w@/!)" "|" "CANCELLED" "DELEGATED(e@)"))
-   org-use-fast-todo-selection t
-   org-use-speed-commands t
-   org-use-sub-superscripts "{}"
-   org-use-tag-inheritance t)
+  (setq org-M-RET-may-split-line nil
+	org-directory user-org-directory
+	org-enforce-todo-dependencies t
+	org-fast-tag-selection-single-key 'expert
+	org-footnote-auto-adjust nil
+	org-footnote-define-inline t
+	org-hide-leading-stars t
+	org-highlight-latex-and-related '(latex)
+	org-log-into-drawer "LOGBOOK"
+	org-outline-path-complete-in-steps t
+	org-refile-targets '((org-agenda-files :maxlevel . 3) (nil :maxlevel . 3))
+	org-refile-use-outline-path 'file
+	org-tag-alist '((:startgroup . nil)
+			("@call" . ?c)
+			("@office" . ?o)
+			("@home" . ?h)
+			("@read" . ?r)
+			("@computer" . ?m)
+			("@dev" . ?d)
+			("@write" . ?w)
+			(:endgroup . nil)
+			("REFILE" . ?f)
+			("SOMEDAY" . ?s)
+			("PROJECT" . ?p))
+	org-tags-exclude-from-inheritance '("@call"
+					    "@office"
+					    "@home"
+					    "@read"
+					    "@computer"
+					    "@dev"
+					    "@write"
+					    "PROJECT")
+	org-todo-keywords '((sequence "TODO(t)" "|" "DONE(d!)")
+			    (sequence "WAITING(w@/!)" "|" "CANCELLED" "DELEGATED(e@)"))
+	org-use-fast-todo-selection t
+	org-use-speed-commands t
+	org-use-sub-superscripts "{}"
+	org-use-tag-inheritance t)
   
   :config
   (use-package org-agenda
@@ -2436,7 +2502,7 @@ _h_: paragraph
   (use-package org-babel
     :straight f
     :no-require
-    :config
+    :init
     (use-package ob-diagrams)
     (use-package ob-restclient)
     (use-package ob-rust)
@@ -2656,7 +2722,8 @@ _h_: paragraph
     :straight f
     :requires texinfo
     :defer t)
-
+  
+  :config
   ;; Set the initial buffer to be the org agenda view.
   (setq org-default-notes-file (expand-file-name "inbox.org" org-directory))
   (setq initial-buffer-choice org-default-notes-files)
@@ -2690,7 +2757,7 @@ _h_: paragraph
 		       'paredit-close-round)
     (paredit-mode))
   
-  :config
+  :init
   (use-package paredit-ext
     :straight f
     :after paredit
@@ -2848,25 +2915,32 @@ _h_: paragraph
 (use-package reveal-in-osx-finder
   :if (eq system-type 'darwin))
 
+(use-package rg
+  ;; :ensure-system-package (rg . ripgrep)
+  )
+
 (use-package rjsx-mode
+  ;; :ensure-system-package ((node . "curl -sL https://deb.nodesource.com/setup_6.x | sudo -E bash -")
+  ;; 			  (nvm  . "curl -o- https://raw.githubusercontent.com/creationix/nvm/v0.33.0/install.sh | bash")) 
   :interpreter (("node" . rjsx-mode))
   :mode (("\\.js?\\'"   . rjsx-mode)
-         ("\\.jsx?\\'"  . rjsx-mode))
+	 ("\\.jsx?\\'"  . rjsx-mode))
   :preface
   (defun my/rjxs-mode-hook ()
     "My rjxs-mode customizations."
     (electric-indent-mode 1)
     (aggresive-indent-mode 1))
-  
+
   :init
   (setq js2-basic-offset 2
-        js2-highlight-level 3
-        js2-bounce-indent-p t
-        js2-mode-show-strict-warnings nil)
-  
+	js2-highlight-level 3
+	js2-bounce-indent-p t
+	js2-mode-show-strict-warnings nil)
+
   :hook (rjxs-mode . my/rjxs-mode-hook))
 
 (use-package rust-mode
+  ;; :ensure-system-package (rust . "curl https://sh.rustup.rs -sSf | sh")
   :mode "\\.rs\\'"
   :preface
   (defun my/compile-single-rust-file ()
@@ -2875,7 +2949,7 @@ _h_: paragraph
     (when (and (f-exists? (buffer-name))
                (f-file? (buffer-name)))
       (compile (concat "rustc " (buffer-name) " -o " (f-no-ext (buffer-name))))))
-  
+
   (defun my/rust-mode-hook ()
     "My Rust-mode configuration."
     (when (featurep 'flycheck)
@@ -2887,52 +2961,47 @@ _h_: paragraph
               ("=>" . (?· (Br . Bl) ?➡))
               ("->" . (?· (Br . Bl) ?→)))
       (push it prettify-symbols-alist)))
-  
-  :config
+
+  :init
   (use-package cargo
-    :after rust-mode
+    :requires rust-mode
     :config
     (with-eval-after-load 'hydra
       ;; Hydra for rust's cargo
       (defhydra hydra-cargo (:color blue :columns 4)
-        "cargo"
-        ("c"  cargo-process-build         "build")
-        ("tt" cargo-process-test          "test all")
-        ("tf" cargo-process-current-test  "test current function")
-        ("b"  cargo-process-bench         "benchmark all")
-        ("C"  cargo-process-clean         "clean")
-        ("dd" cargo-process-doc           "build documentation")
-        ("do" cargo-process-doc-open      "build and open documentation")
-        ("r"  cargo-process-run           "run")
-        ("y"  cargo-process-clippy        "clippy"))
+	"cargo"
+	("c"  cargo-process-build         "build")
+	("tt" cargo-process-test          "test all")
+	("tf" cargo-process-current-test  "test current function")
+	("b"  cargo-process-bench         "benchmark all")
+	("C"  cargo-process-clean         "clean")
+	("dd" cargo-process-doc           "build documentation")
+	("do" cargo-process-doc-open      "build and open documentation")
+	("r"  cargo-process-run           "run")
+	("y"  cargo-process-clippy        "clippy"))
       (general-define-key :keymaps 'rust-mode-map :states 'normal "c" #'hydra-cargo/body))
-    
     :hook (rust-mode . cargo-minor-mode))
 
   (use-package racer
-    :disabled
     :unless (featurep 'lsp-mode)
-    :if (executable-find "racer")
-    :defines (racer-cmd racer-rust-src-path)
-    :init
+    ;; :ensure-system-package (racer . "cargo install racer")
+    :defines (racer-cmd racer-rust-src-path rust-src-path rust-bin-path rust-default-toolchain)
+    :config
     ;; Tell racer to use the rustup managed rust-src
     (setq racer-cmd              (executable-find "racer")
           rust-default-toolchain (car (s-split " " (-first
                                                     (lambda (line) (s-match "default" line))
                                                     (s-lines (shell-command-to-string "rustup toolchain list")))))
           rust-src-path          (concat (getenv "HOME") "/.multirust/toolchains/"
-                                         rust-default-toolchain "/lib/rustlib/src/rust/src")
+					 rust-default-toolchain "/lib/rustlib/src/rust/src")
           rust-bin-path          (concat (getenv "HOME") "/.multirust/toolchains/"
-                                         rust-default-toolchain "/bin")
+					 rust-default-toolchain "/bin")
           racer-rust-src-path    rust-src-path)
-    
-    :config
     (setenv "RUST_SRC_PATH" rust-src-path)
     (setenv "RUSTC" rust-bin-path)
     (with-eval-after-load 'company
       (add-to-list 'company-dabbrev-code-modes 'rust-mode)
       (add-hook 'racer-mode-hook #'company-mode))
-    
     :hook (rust-mode . (racer-mode eldoc-mode)))
 
   :hook (rust-mode . my/rust-mode-hook))
@@ -3031,6 +3100,17 @@ _h_: paragraph
   :bind (:map term-mode-map
               ("C-c C-y" . term-paste)))
 
+(use-package tern
+  :defer t
+  ;; :ensure-system-package (tern . "sudo npm i -g tern")
+  :init
+  (use-package company-tern
+    :requires (company tern)
+    :defer t
+    :config
+    (add-to-list 'company-backends 'company-tern))
+  :hook (js2-mode . tern-mode))
+
 (use-package tidy
   :commands (tidy-buffer
              tidy-parse-config-file
@@ -3051,7 +3131,7 @@ _h_: paragraph
          ("C-c t B"     . treemacs-bookmark)
          ("C-c t C-t"   . treemacs-find-file)
          ("C-c t M-t"   . treemacs-find-tag))
-  :config
+  :init
   (use-package treemacs-projectile
     :requires projectile
     :defer t
@@ -3059,7 +3139,7 @@ _h_: paragraph
     (setq treemacs-header-function #'treemacs-projectile-create-header)
     :bind (("C-c t P"    . treemacs-projectile)
            ("C-c t p"    . treemacs-projectile-toggle)))
-
+  :config
   (setq treemacs-change-root-without-asking nil
         treemacs-collapse-dirs              (if (executable-find "python") 3 0)
         treemacs-file-event-delay           5000
@@ -3109,6 +3189,7 @@ _h_: paragraph
         web-mode-enable-auto-quoting nil))
 
 (use-package which-func
+  :disabled
   :defer t
   :unless noninteractive
   :hook (c-mode-common . which-function-mode))
@@ -3263,13 +3344,13 @@ _h_: paragraph
          ("C-c y x" . yas-expand))
   :bind (:map yas-keymap
               ("C-i" . yas-next-field-or-maybe-expand))
-  :config
+  :init
   (use-package auto-yasnippet
     :requires (yasnippet)
     :bind (("C-c y a" . aya-create)
            ("C-c y e" . aya-expand)
            ("C-c y o" . aya-open-line)))
-  
+  :config
   (yas-load-directory (expand-file-name "snippets" user-emacs-directory))
   (yas-global-mode 1))
 
@@ -3303,13 +3384,14 @@ _h_: paragraph
                                           emacs-start-time))))
   (message "Loading %s...done (%.3fs)" load-file-name elapsed))
 
-(add-hook 'after-init-hook
-          `(lambda ()
-             (let ((elapsed
-                    (float-time
-                     (time-subtract (current-time) emacs-start-time))))
-               (message "Loading %s...done (%.3fs) [after-init]"
-                        ,load-file-name elapsed))) t)
+(defun my/after-init ()
+  (let ((elapsed
+         (float-time
+          (time-subtract (current-time) emacs-start-time))))
+    (message "Loading %s...done (%.3fs) [after-init]"
+             load-file-name elapsed)))
+
+(add-hook 'after-init-hook #'my/after-init t)
 
 (provide 'init)
 ;;; init.el ends here
