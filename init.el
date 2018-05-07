@@ -129,17 +129,19 @@
   
   (load (expand-file-name "settings" user-emacs-directory))
   
-  (setq make-backup-files nil
-        auto-save-default nil
-        inhibit-splash-screen t
-        visible-bell nil
-        indent-tabs-mode nil
-        tab-width 2
-        css-indent-offset 2
-        load-prefer-newer t
+  (setq auto-save-default nil
+        auto-save-list-file-name (expand-file-name "auto-save-list" user-data-directory)
         auto-window-vscroll nil
+        css-indent-offset 2
+        echo-keystrokes 0.3
+        indent-tabs-mode nil
+        inhibit-splash-screen t
+        load-prefer-newer t
+        make-backup-files nil
         mouse-drag-copy-region t
-        echo-keystrokes 0.1)
+        pacache-directory (expand-file-name "var" user-data-directory)
+        tab-width 2
+        visible-bell nil)
 
   (setq browse-url-browser-function 'browse-url-chromium)
   
@@ -2015,11 +2017,14 @@ _h_: paragraph
   
   (use-package magithub
     :after magit
-    :config
+    :if (executable-find "hub")
+    :init
+    (setq magithub-dir (expand-file-name "magithub" user-data-directory))
+    
     (use-package magithub-completion
       :straight f
       :commands magithub-completion-enable)
-
+    :config
     (magithub-feature-autoinject t)
 
     (require 'auth-source-pass)
@@ -2034,12 +2039,12 @@ _h_: paragraph
   :config
   (with-eval-after-load 'magit-remote
     (magit-define-popup-action 'magit-fetch-popup
-			       ?f 'magit-get-remote #'magit-fetch-from-upstream ?u t)
+      ?f 'magit-get-remote #'magit-fetch-from-upstream ?u t)
     (magit-define-popup-action 'magit-pull-popup
-			       ?F 'magit-get-upstream-branch #'magit-pull-from-upstream ?u t)
+      ?F 'magit-get-upstream-branch #'magit-pull-from-upstream ?u t)
     (magit-define-popup-action 'magit-push-popup
-			       ?P 'magit--push-current-to-upstream-desc
-			       #'magit-push-current-to-upstream ?u t))
+      ?P 'magit--push-current-to-upstream-desc
+      #'magit-push-current-to-upstream ?u t))
   (put 'magit-clean 'dsabled nil)
 
   (setq pretty-magit-alist nil)
