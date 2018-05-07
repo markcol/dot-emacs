@@ -9,6 +9,9 @@
 
 ;;; Code:
 
+(setq user-full-name "Mark H. Colburn"
+      user-mail-address "colburn.mark@gmail.com")
+
 (defconst emacs-start-time (current-time))
 (defvar my/file-name-handler-alist-old file-name-handler-alist)
 
@@ -26,11 +29,6 @@
   (garbage-collect))
 
 (add-hook 'after-init-hook #'my/restore-default-values)
-
-(tool-bar-mode -1)
-(scroll-bar-mode -1)
-(column-number-mode t)
-(line-number-mode t)
 
 (eval-and-compile
   ;; Bootstrap straight.el
@@ -109,6 +107,8 @@
 ;;; Settings
 
 (eval-and-compile
+  (require 'cl-lib)
+
   (defconst user-data-directory (expand-file-name "data" user-emacs-directory)
     "Directory for data files.")
 
@@ -127,46 +127,64 @@
       (message "Creating directory %s..." dir)
       (make-directory dir)))
   
-  (load (expand-file-name "settings" user-emacs-directory))
+  (load (expand-file-name "settings" user-emacs-directory) :noerror)
+
+  (tool-bar-mode -1)
+  (scroll-bar-mode -1)
+  (column-number-mode t)
+  (line-number-mode t)
+  (global-font-lock-mode 1)
+  (show-paren-mode 1)
+  (size-indication-mode 1)
+  (delete-selection-mode 1)
+  ;; Revert buffers automatically when underlying files are changed externally
+  (global-auto-revert-mode t)
   
-  (setq auto-save-default nil
+  (setq auto-revert-verbose nil          ; no messages about reverted files
+        auto-save-default nil
         auto-save-list-file-name (expand-file-name "auto-save-list" user-data-directory)
         auto-window-vscroll nil
+        browse-url-browser-function 'browse-url-chromium
+        confirm-kill-emacs #'y-or-n-p
         css-indent-offset 2
         echo-keystrokes 0.3
         indent-tabs-mode nil
         inhibit-splash-screen t
+        inhibit-startup-message t
         load-prefer-newer t
         make-backup-files nil
         mouse-drag-copy-region t
         pacache-directory (expand-file-name "var" user-data-directory)
-        tab-width 2
-        visible-bell nil)
-
-  (setq browse-url-browser-function 'browse-url-chromium)
-  
-  ;; nice scrolling
-  (setq scroll-margin 0
+        require-final-newline t
         scroll-conservatively 100000
-        scroll-preserve-screen-position 1)
-
-  ;; Revert buffers automatically when underlying files are changed externally
-  (global-auto-revert-mode t)
+        scroll-margin 0
+        scroll-preserve-screen-position 1
+        sentance-end-double-space nil        ; sentances can end with a '. ', rather than '.  '
+        tab-width 2
+        uniquify-buffer-name-style (quote post-forward-angle-brackets)
+        visible-bell nil
+        )
   
-  ;; Do not display message about reverted files
-  (setq auto-rever-verbose nil)
+  (setq-default indent-tabs-mode nil
+                tab-wdith 2)
 
-  (prefer-coding-system 'utf-8)
+  ;; Use UTF-8 everywhere possible:
+  (set-language-environment 'UTF-8)
   (set-default-coding-systems 'utf-8)
   (set-terminal-coding-system 'utf-8)
   (set-keyboard-coding-system 'utf-8)
+  (prefer-coding-system 'utf-8)
+
+  ;; Do not use UTF-8 with `ansi-term` 
+  (defun my/advise-ansi-term-coding-system ()
+    (set-buffer-process-coding-system 'utf-8-unix 'utf-8-unix))
+  (advice-add 'ansi-term :after #'my/advise-ansi-term-coding-system)
   
   (defalias 'yes-or-no-p #'y-or-n-p)
-  (setq confirm-kill-emacs #'y-or-n-p)
 
-  (require 'cl-lib)
+  ;; Enable disabled commands
+  (put 'downcase-region 'disabled nil)
   )
-
 
 ;;;
 ;;; Functions
@@ -341,72 +359,85 @@
 ;;; Libraries
 ;;;
 
-(use-package async         :defer t)
-(use-package dash          :defer t)
-(use-package diminish      :demand t)
-(use-package el-mock       :defer t)
-(use-package elisp-refs    :defer t)
-(use-package epl           :defer t)
-(use-package f             :defer t)
-(use-package fringe-helper :defer t)
-(use-package ghub          :defer t)
-(use-package ghub+         :defer t)
-(use-package ht            :defer t)
-(use-package loop          :defer t)
-(use-package marshal       :defer t)
-(use-package parsebib      :defer t)
-(use-package pkg-info      :defer t)
-(use-package popup         :defer t)
-(use-package popup-pos-tip :defer t)
-(use-package popwin        :defer t)
-(use-package pos-tip       :defer t)
-(use-package request       :defer t)
-(use-package rich-minority :defer t)
-(use-package s             :defer t)
-(use-package tablist       :defer t)
-(use-package uuidgen       :defer t)
-(use-package web           :defer t)
-(use-package web-server    :defer t)
-(use-package websocket     :defer t)
-(use-package with-editor   :defer t)
-(use-package xml-rpc       :defer t)
+(use-package async           :defer t)
+(use-package dash            :defer t)
+(use-package diminish        :demand t)
+(use-package el-mock         :defer t)
+(use-package elisp-refs      :defer t)
+(use-package epl             :defer t)
+(use-package f               :defer t)
+(use-package fringe-helper   :defer t)
+(use-package ghub            :defer t)
+(use-package ghub+           :defer t)
+(use-package ht              :defer t)
+(use-package loop            :defer t)
+(use-package marshal         :defer t)
+(use-package narrow-indirect :defer t)
+(use-package parsebib        :defer t)
+(use-package pkg-info        :defer t)
+(use-package popup           :defer t)
+(use-package popup-pos-tip   :defer t)
+(use-package pos-tip         :defer t)
+(use-package request         :defer t)
+(use-package rich-minority   :defer t)
+(use-package s               :defer t)
+(use-package tablist         :defer t)
+(use-package uuidgen         :defer t)
+(use-package web             :defer t)
+(use-package web-server      :defer t)
+(use-package websocket       :defer t)
+(use-package with-editor     :defer t)
+(use-package xml-rpc         :defer t)
 
 ;;;
 ;;; UI
 ;;;
 
-(use-package afternoon-theme
-  :unless noninteractive)
+(eval-and-compile
+  (use-package afternoon-theme
+    :unless noninteractive)
 
-(use-package all-the-icons
-  :if (display-graphic-p)
-  :defer t)
+  (use-package all-the-icons
+    :if (display-graphic-p)
+    :defer t)
 
-(use-package spaceline
-  :unless noninteractive
-  :demand t
-  :init
-  (setq powerline-default-separator 'arrow-fade)
-  :config
-  (require 'spaceline-config)
-  (spaceline-emacs-theme))
+  (use-package spaceline
+    :unless noninteractive
+    :demand t
+    :init
+    (setq powerline-default-separator 'arrow-fade)
+    :config
+    (require 'spaceline-config)
+    (spaceline-emacs-theme))
 
-(setq default-frame-alist '((height . 58)
-			    (width  . 136)
-			    (font   . "Fantasque Sans Mono-12")))
+  (setq default-frame-alist '((height . 58)
+			                        (width  . 136)
+			                        (font   . "Fantasque Sans Mono-12")))
 
-(defun my/ui-settings (&rest frame)
-  "Setup the UI settings for a newly created `frame`."
-  (let ((f (or (car frame) (selected-frame))))
-    (when (display-graphic-p)
-      (set-frame-size f 136 58)
-      ;; Keep the frame size, but apply font to all frames.
-      (set-frame-font "Fantasque Sans Mono-12" nil t)
-      (load-theme 'afternoon-theme t)
-      (setq powerline-default-separator 'arrow-fade)
-      (spaceline-emacs-theme))))
+  (defun my/unload-themes ()
+    "Unload any loaded themes."
+    (mapc #'disable-theme custom-enabled-themes))
+  
+  ;; When loading a different theme, first unload any loaded themes so
+  ;; that they do not leave stray customizations behind.
+  (advice-add 'load-theme :before #'my/unload-themes)
 
-(add-hook 'after-make-frame-functions #'my/ui-settings t)
+  (defun my/ui-settings (&rest frame)
+    "Setup the UI settings for a newly created `frame`."
+    (let ((f (or (car frame) (selected-frame))))
+      (setq-default cursor-type 'box)
+      (when (display-graphic-p)
+        (if (fboundp 'toggle-frame-maximized)
+            (add-hook 'emacs-startup-hook #'toggle-frame-maximized)
+          (set-frame-size f 120 50))
+        
+        ;; Keep the frame size, but apply font to all frames.
+        (set-frame-font "Fantasque Sans Mono-12" nil t)
+        (load-theme 'afternoon-theme t)
+        (setq powerline-default-separator 'arrow-fade)
+        (spaceline-emacs-theme))))
+
+  (add-hook 'after-make-frame-functions #'my/ui-settings t))
 
 ;;;
 ;;; Packages
@@ -421,14 +452,12 @@
         save-abbrevs 'silently)
   (setq-default abbrev-mode t)
   :config
-  (if (file-exists-p abbrev-file-name)
-      (quietly-read-abbrev-file))
-  :hook
-  ((text-mode prog-mode erc-mode LaTeX-mode) . abbrev-mode)
-  (expand-load
-   . (lambda ()
-       (add-hook 'expand-expand-hook 'indent-according-to-mode)
-       (add-hook 'expand-jump-hook 'indent-according-to-mode))))
+  (when (file-exists-p abbrev-file-name)
+    (quietly-read-abbrev-file))
+  :hook ((text-mode prog-mode erc-mode LaTeX-mode) . abbrev-mode)
+  (expand-load . (lambda ()
+                   (add-hook 'expand-expand-hook 'indent-according-to-mode)
+                   (add-hook 'expand-jump-hook 'indent-according-to-mode))))
 
 (use-package ag
   :if (executable-find "ag")
@@ -603,6 +632,12 @@
   (add-hook 'auto-compile-inhibit-compile-hook
             #'auto-compile-inhibit-compile-detached-git-head))
 
+(use-package auto-fill-mode
+  :straight f
+  :init
+  (setq comment-auto-fill-only-comments t)
+  :hook ((text-mode prog-mode) . turn-on-auto-fill))
+
 (use-package avy
   :bind* ("C-." . avy-goto-char-timer)
   :config
@@ -673,10 +708,10 @@
   :config
   ;; From https://github.com/company-mode/company-mode/issues/87
   ;; See also https://github.com/company-mode/company-mode/issues/123
-  (defadvice company-pseudo-tooltip-unless-just-one-frontend
-      (around only-show-tooltip-when-invoked activate)
+  (defun only-show-tooltip-when-invoked (orig-fun)
     (when (company-explicit-action-p)
-      ad-do-it))
+      (apply orig-fun args)))
+  (advice-add 'company-pseudo-tooltip-unless-just-one-frontend :around #'only-show-tooltip-when-invoked)
 
   ;; See http://oremacs.com/2017/12/27/company-numbers/
   (defun ora-company-number ()
@@ -1131,7 +1166,20 @@
 
 (use-package exec-path-from-shell
   :if (eq system-type 'darwin)		; only needed on MacOS
+  :defines (exec-patth-from-shell-variables)
   :config
+  (mapc (lambda (variable)
+          (add-to-list 'exec-path-from-shell-variables variable))
+        '("ALTERNATE_EDITOR"
+          "CDPATH"
+          "EDITOR"
+          "GOPATH"
+          "GPG_AGENT_INFO"
+          "HISTFILE"
+          "INFOPATH"
+          "LANG"
+          "LC_ALL"
+          "SSH_AUTH_SOCK"))
   (exec-path-from-shell-initialize))
 
 (use-package expand-region
@@ -1300,6 +1348,34 @@ _h_: paragraph
   :init
   (autoload #'fullframe "fullframe"))
 
+(use-package go-mode
+  :if (executable-find "go")
+  :preface
+  (defun my/go-mode-config ()
+    "My Go language customizations"
+    (yas-minor-mode))
+  
+  :init
+  (use-package go-snippets
+    :requires (go yasnippet))
+  
+  :config
+  (setenv "GOPATH" (expand-file-name "go" (getenv "HOME")))
+  (setq go-path-bin (expand-file-name "bin" (getenv "GOPATH")))
+  (when (not (file-directory-p go-path-bin))
+    (make-directory go-path-bin) t)
+  (setenv "PATH" (concat (getenv "PATH") ":" go-path-bin))
+  (setq exec-path (append exec-path go-path-bin))
+  (when (file-directory-p "/usr/local/opt/go/libexec/bin")
+    (setenv "PATH" (concat (getenv "PATH") ":/usr/local/opt/go/libexec/bin"))
+    (setq exec-path (append exec-path '("/usr/local/opt/go/libexec/bin"))))
+  (when (executable-find "goimports")
+    (setq gofmt-command "goimports"))
+  (load-file "$GOPATH/src/golang.org/x/tools/cmd/oracle/oracle.el" :noerror)
+  (load-file "$GOPATH/src/golang.org/x/tools/refactor/rename/rename.el" :noerror)
+  :hook (go-mode . my/go-mode-config)
+  :hook (before-save . gofmt-before-save))
+
 (use-package google-this
   :bind-keymap ("C-c /" . google-this-mode-submap)
   :bind* ("M-SPC" . google-this-search)
@@ -1321,6 +1397,10 @@ _h_: paragraph
          ("M-s G" . grep)
          ("M-s d" . find-grep-dired)))
 
+(use-package haml-mode
+  :defer t
+  :mode "\\.ha?ml\\'")
+
 (use-package haskell-mode
   :if (not (eq system-type 'windows)) 
   ;; :ensure-system-package
@@ -1328,8 +1408,8 @@ _h_: paragraph
   ;;  (hoogle . "stack install hoogle"))
   :defines (haskell-process-reload-with-fbytecode)
   :mode (("\\.hs\\(c\\|-boot\\)?\\'" . haskell-mode)
-	 ("\\.lhs\\'" . literate-haskell-mode)
-	 ("\\.cabal\\'" . haskell-cabal-mode))
+	       ("\\.lhs\\'" . literate-haskell-mode)
+	       ("\\.cabal\\'" . haskell-cabal-mode))
   :bind (:map haskell-mode-map
               ("C-c C-h" . my/haskell-hoogle)
               ("C-c C-," . haskell-navigate-imports)
@@ -1363,11 +1443,11 @@ _h_: paragraph
                           nil nil def)
              current-prefix-arg)))
     (unless (and hoogle-server-process
-		 (process-live-p hoogle-server-process))
+		             (process-live-p hoogle-server-process))
       (message "Starting local Hoogle server on port 8687...")
       (with-current-buffer (get-buffer-create " *hoogle-web*")
-	(cd temporary-file-directory)
-	(setq hoogle-server-process
+	      (cd temporary-file-directory)
+	      (setq hoogle-server-process
               (start-process "hoogle-web" (current-buffer) "hoogle"
                              "server" "--local" "--port=8687")))
       (message "Starting local Hoogle server on port 8687...done"))
@@ -1410,12 +1490,13 @@ _h_: paragraph
   (require 'haskell)
   (require 'haskell-doc)
 
-  (defun my/haskell-mode-hook ()
+  (defun my/haskell-config ()
+    (yas-minor-mode)
     (haskell-indentation-mode)
     (interactive-haskell-mode)
     (diminish 'interactive-haskell-mode)
     (if (featurep 'flycheck)
-	(flycheck-mode 1))
+	      (flycheck-mode 1))
     (setq-local prettify-symbols-alist haskell-prettify-symbols-alist)
     (prettify-symbols-mode 1)
     (bug-reference-prog-mode 1))
@@ -1426,26 +1507,26 @@ _h_: paragraph
   actual Emacs buffer of the module being loaded."
     (when (get-buffer (format "*%s:splices*" (haskell-session-name session)))
       (with-current-buffer (haskell-interactive-mode-splices-buffer session)
-	(erase-buffer)))
+	      (erase-buffer)))
     (let* ((ok (cond
-		((haskell-process-consume
+		            ((haskell-process-consume
                   process
                   "Ok, \\(?:\\([0-9]+\\|one\\)\\) modules? loaded\\.$")
-		 t)
-		((haskell-process-consume
+		             t)
+		            ((haskell-process-consume
                   process
                   "Failed, \\(?:[0-9]+\\) modules? loaded\\.$")
-		 nil)
-		((haskell-process-consume
+		             nil)
+		            ((haskell-process-consume
                   process
                   "Ok, modules loaded: \\(.+\\)\\.$")
-		 t)
-		((haskell-process-consume
+		             t)
+		            ((haskell-process-consume
                   process
                   "Failed, modules loaded: \\(.+\\)\\.$")
-		 nil)
-		(t
-		 (error (message "Unexpected response from haskell process.")))))
+		             nil)
+		            (t
+		             (error (message "Unexpected response from haskell process.")))))
            (modules (haskell-process-extract-modules buffer))
            (cursor (haskell-process-response-cursor process))
            (warning-count 0))
@@ -1453,35 +1534,37 @@ _h_: paragraph
       (haskell-check-remove-overlays module-buffer)
       (while
           (haskell-process-errors-warnings module-buffer session process buffer)
-	(setq warning-count (1+ warning-count)))
+	      (setq warning-count (1+ warning-count)))
       (haskell-process-set-response-cursor process cursor)
       (if (and (not reload)
                haskell-process-reload-with-fbytecode)
           (haskell-process-reload-with-fbytecode process module-buffer)
-	(haskell-process-import-modules process (car modules)))
+	      (haskell-process-import-modules process (car modules)))
       (if ok
           (haskell-mode-message-line (if reload "Reloaded OK." "OK."))
-	(haskell-interactive-mode-compile-error session "Compilation failed."))
+	      (haskell-interactive-mode-compile-error session "Compilation failed."))
       (when cont
-	(condition-case-unless-debug e
+	      (condition-case-unless-debug e
             (funcall cont ok)
           (error (message "%S" e))
           (quit nil)))))
 
-  :config
+  :init
   (use-package company-cabal
+    :requires (company)
     :defer t
     :after (company haskell-cabal))
 
   (use-package ghc
     :disabled
+    :requires (haskell)
     :load-path
     (lambda ()
       (cl-mapcan
        #'(lambda (lib) (directory-files lib t "^ghc-"))
        (cl-mapcan
-	#'(lambda (lib) (directory-files lib t "^elpa$"))
-	(filter (apply-partially #'string-match "-emacs-ghc-") load-path))))
+	      #'(lambda (lib) (directory-files lib t "^elpa$"))
+	      (filter (apply-partially #'string-match "-emacs-ghc-") load-path))))
     :commands ghc-init
     :config
     (setenv "cabal_helper_libexecdir"
@@ -1492,13 +1575,18 @@ _h_: paragraph
 
   (use-package haskell-edit
     :straight f
+    :requires (haskell)
     :load-path "lisp/haskell-config"
     :bind (:map haskell-mode-map
-		("C-c M-q" . haskell-edit-reformat)))
+		            ("C-c M-q" . haskell-edit-reformat)))
 
   (use-package hindent-mode
+    :requires (haskell)
+    :if (executable-find "hindent")
     :straight (:host github :repo "commercialhaskell/hindent")
     :hook (haskell-mode . hindent-mode))
+  
+  :config
   (eval-after-load 'align
     '(nconc
       align-rules-list
@@ -1507,12 +1595,11 @@ _h_: paragraph
                     (regexp . ,(cdr x))
                     (modes quote (haskell-mode literate-haskell-mode))))
               '((haskell-types       . "\\(\\s-+\\)\\(::\\|∷\\)\\s-+")
-		(haskell-assignment  . "\\(\\s-+\\)=\\s-+")
-		(haskell-arrows      . "\\(\\s-+\\)\\(->\\|→\\)\\s-+")
-		(haskell-left-arrows . "\\(\\s-+\\)\\(<-\\|←\\)\\s-+")))))
+		            (haskell-assignment  . "\\(\\s-+\\)=\\s-+")
+		            (haskell-arrows      . "\\(\\s-+\\)\\(->\\|→\\)\\s-+")
+		            (haskell-left-arrows . "\\(\\s-+\\)\\(<-\\|←\\)\\s-+")))))
 
-  :hook (haskell-mode . my/haskell-mode-hook))
-
+  :hook (haskell-mode . my/haskell-config))
 
 (use-package hydra
   :defer t
@@ -1583,7 +1670,6 @@ _h_: paragraph
   :defer t
   :init
   (autoload 'info-lookup-add-help "info-look")
-  :config
   (use-package info-lookmore
     :config
     (info-lookmore-elisp-cl)
@@ -1676,18 +1762,18 @@ _h_: paragraph
     (interactive)
     (let (amend)
       (with-ivy-window
-        ;;move to last word boundary
-        (re-search-backward "\\b")
-        (let ((pt (point))
-              (le (line-end-position)))
-          (forward-word 1)
-          (if (> (point) le)
-              (goto-char pt)
-            (setq amend (buffer-substring-no-properties pt (point))))))
+       ;;move to last word boundary
+       (re-search-backward "\\b")
+       (let ((pt (point))
+             (le (line-end-position)))
+         (forward-word 1)
+         (if (> (point) le)
+             (goto-char pt)
+           (setq amend (buffer-substring-no-properties pt (point))))))
       (when amend
         (insert (replace-regexp-in-string "  +" " " amend)))))
 
-  :config
+  :init
   (use-package counsel
     :after (swiper)
     :bind (("M-x"	  . counsel-M-x)
@@ -1747,7 +1833,7 @@ _h_: paragraph
       (setq ivy-virtual-abbreviate 'full
             ivy-rich-switch-buffer-align-virtual-buffer t
             ivy-rich-path-style 'abbrev))
-
+    :config
     (setq ivy-count-format             ""
 	  ivy-dynamic-exhibit-delay-ms 200
 	  ivy-height                   10
@@ -1763,9 +1849,13 @@ _h_: paragraph
     (with-eval-after-load 'flx
       (setq ivy-re-builders-alist '((t . ivy--regex-fuzzy))))))
 
+(use-package jira
+  :requires (xml-rpc)
+  :defer t)
+
 (use-package json-mode
   :mode "\\.json\\'"
-  :config
+  :init
   (use-package json-reformat)
   (use-package json-snatcher))
 
@@ -1798,7 +1888,7 @@ _h_: paragraph
         (1 font-lock-keyword-face)
         (2 font-lock-function-name-face
            nil t)))))
-  :config
+
   (use-package elint
     :commands (elint-initialize elint-current-buffer)
     :bind ("C-c e E" . my/elint-current-buffer)
@@ -1847,7 +1937,7 @@ _h_: paragraph
     (when lsp--cur-workspace
       (setq projectile-project-root (lsp--workspace-root lsp--cur-workspace))))
 
-  :config
+  :init
   (use-package lsp-ui
     :requires (lsp-mode imenu)
     :hook (lsp-after-open . lsp-enable-imenu)
@@ -1857,6 +1947,7 @@ _h_: paragraph
     :straight f
     :requires (lsp-mode lsp-ui flycheck))
 
+  :config
   (with-eval-after-load 'projectile
     (add-hook 'lsp-before-open-hook #'my/set-projectile-root)))
 
@@ -2235,7 +2326,7 @@ _h_: paragraph
     "Remove comments from org document.
   For use with export hook."
     (loop for comment in (reverse (org-element-map (org-element-parse-buffer)
-                                                   'comment 'identity))
+                                      'comment 'identity))
           do
           (setf (buffer-substring (org-element-property :begin comment)
                                   (org-element-property :end comment))
@@ -2312,43 +2403,43 @@ _h_: paragraph
   :init
   (load "org-settings" :noerror)
   (setq org-M-RET-may-split-line nil
-	org-directory user-org-directory
-	org-enforce-todo-dependencies t
-	org-fast-tag-selection-single-key 'expert
-	org-footnote-auto-adjust nil
-	org-footnote-define-inline t
-	org-hide-leading-stars t
-	org-highlight-latex-and-related '(latex)
-	org-log-into-drawer "LOGBOOK"
-	org-outline-path-complete-in-steps t
-	org-refile-targets '((org-agenda-files :maxlevel . 3) (nil :maxlevel . 3))
-	org-refile-use-outline-path 'file
-	org-tag-alist '((:startgroup . nil)
-			("@call" . ?c)
-			("@office" . ?o)
-			("@home" . ?h)
-			("@read" . ?r)
-			("@computer" . ?m)
-			("@dev" . ?d)
-			("@write" . ?w)
-			(:endgroup . nil)
-			("REFILE" . ?f)
-			("SOMEDAY" . ?s)
-			("PROJECT" . ?p))
-	org-tags-exclude-from-inheritance '("@call"
-					    "@office"
-					    "@home"
-					    "@read"
-					    "@computer"
-					    "@dev"
-					    "@write"
-					    "PROJECT")
-	org-todo-keywords '((sequence "TODO(t)" "|" "DONE(d!)")
-			    (sequence "WAITING(w@/!)" "|" "CANCELLED" "DELEGATED(e@)"))
-	org-use-fast-todo-selection t
-	org-use-speed-commands t
-	org-use-sub-superscripts "{}"
-	org-use-tag-inheritance t)
+	      org-directory user-org-directory
+	      org-enforce-todo-dependencies t
+	      org-fast-tag-selection-single-key 'expert
+	      org-footnote-auto-adjust nil
+	      org-footnote-define-inline t
+	      org-hide-leading-stars t
+	      org-highlight-latex-and-related '(latex)
+	      org-log-into-drawer "LOGBOOK"
+	      org-outline-path-complete-in-steps t
+	      org-refile-targets '((org-agenda-files :maxlevel . 3) (nil :maxlevel . 3))
+	      org-refile-use-outline-path 'file
+	      org-tag-alist '((:startgroup . nil)
+			                  ("@call" . ?c)
+			                  ("@office" . ?o)
+			                  ("@home" . ?h)
+			                  ("@read" . ?r)
+			                  ("@computer" . ?m)
+			                  ("@dev" . ?d)
+			                  ("@write" . ?w)
+			                  (:endgroup . nil)
+			                  ("REFILE" . ?f)
+			                  ("SOMEDAY" . ?s)
+			                  ("PROJECT" . ?p))
+	      org-tags-exclude-from-inheritance '("@call"
+					                                  "@office"
+					                                  "@home"
+					                                  "@read"
+					                                  "@computer"
+					                                  "@dev"
+					                                  "@write"
+					                                  "PROJECT")
+	      org-todo-keywords '((sequence "TODO(t)" "|" "DONE(d!)")
+			                      (sequence "WAITING(w@/!)" "|" "CANCELLED" "DELEGATED(e@)"))
+	      org-use-fast-todo-selection t
+	      org-use-speed-commands t
+	      org-use-sub-superscripts "{}"
+	      org-use-tag-inheritance t)
   
   :config
   (use-package org-agenda
@@ -2661,6 +2752,7 @@ _h_: paragraph
     :defer t)
 
   (use-package ox-jira
+    :requires (jira)
     ;; Transforms Org files to JIRA markup for pasting into JIRA tickets & comments.
     ;; https://github.com/stig/ox-jira.el
     :defer t
@@ -2784,6 +2876,17 @@ _h_: paragraph
 
 (use-package pkgbuild-mode
   :mode "/PKGBULD$")
+
+(use-package popwin
+  :commands popwin-mode
+  :defer 2
+  :config
+  (progn
+    (popwin-mode 1)
+    (push '("*Org Agenda*" :width 82 :position right :dedicated t :stick t) popwin:special-display-config)
+    (push '("*ivy*" :height 20) popwin:special-display-config)
+    (push '("^\*ivy .+\*$" :regexp t :height 20) popwin:special-display-config)
+    (push '("*Compile-Log*" :height 20 :noselect t) popwin:special-display-config)))
 
 (use-package projectile
   :after ivy
@@ -2968,22 +3071,25 @@ _h_: paragraph
       (push it prettify-symbols-alist)))
 
   :init
+  ;; TODO(markcol): Is this required?
+  (require 'rust-mode)
+  
   (use-package cargo
     :requires rust-mode
     :config
     (with-eval-after-load 'hydra
       ;; Hydra for rust's cargo
       (defhydra hydra-cargo (:color blue :columns 4)
-	"cargo"
-	("c"  cargo-process-build         "build")
-	("tt" cargo-process-test          "test all")
-	("tf" cargo-process-current-test  "test current function")
-	("b"  cargo-process-bench         "benchmark all")
-	("C"  cargo-process-clean         "clean")
-	("dd" cargo-process-doc           "build documentation")
-	("do" cargo-process-doc-open      "build and open documentation")
-	("r"  cargo-process-run           "run")
-	("y"  cargo-process-clippy        "clippy"))
+	      "cargo"
+	      ("c"  cargo-process-build         "build")
+	      ("tt" cargo-process-test          "test all")
+	      ("tf" cargo-process-current-test  "test current function")
+	      ("b"  cargo-process-bench         "benchmark all")
+	      ("C"  cargo-process-clean         "clean")
+	      ("dd" cargo-process-doc           "build documentation")
+	      ("do" cargo-process-doc-open      "build and open documentation")
+	      ("r"  cargo-process-run           "run")
+	      ("y"  cargo-process-clippy        "clippy"))
       (general-define-key :keymaps 'rust-mode-map :states 'normal "c" #'hydra-cargo/body))
     :hook (rust-mode . cargo-minor-mode))
 
@@ -2998,9 +3104,9 @@ _h_: paragraph
                                                     (lambda (line) (s-match "default" line))
                                                     (s-lines (shell-command-to-string "rustup toolchain list")))))
           rust-src-path          (concat (getenv "HOME") "/.multirust/toolchains/"
-					 rust-default-toolchain "/lib/rustlib/src/rust/src")
+					                               rust-default-toolchain "/lib/rustlib/src/rust/src")
           rust-bin-path          (concat (getenv "HOME") "/.multirust/toolchains/"
-					 rust-default-toolchain "/bin")
+					                               rust-default-toolchain "/bin")
           racer-rust-src-path    rust-src-path)
     (setenv "RUST_SRC_PATH" rust-src-path)
     (setenv "RUSTC" rust-bin-path)
@@ -3330,7 +3436,7 @@ _h_: paragraph
   (winner-mode 1))
 
 (use-package yaml-mode
-  :mode "\\.yaml\\'")
+  :mode "\\.ya?ml\\'")
 
 (use-package yasnippet
   :after prog-mode
