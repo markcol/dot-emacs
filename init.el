@@ -109,7 +109,7 @@
 (eval-and-compile
   (require 'cl-lib)
 
-  (defconst user-data-directory (expand-file-name "data" user-emacs-directory)
+  (defconst user-data-directory (expand-file-name ".cache" user-emacs-directory)
     "Directory for data files.")
 
   (defconst user-document-directory (expand-file-name "~/Documents")
@@ -869,13 +869,13 @@
                '(counsel-find-file . ivy--sort-files-by-date))
 
   (use-package counsel-dash
-    :after counsel
-    :requires dash
+    :if (eq system-type 'darwin)
+    :requires (counsel dash)
     :bind ("C-c C-h" . counsel-dash))
 
   (use-package counsel-osx-app
     :if (eq system-type 'darwin)
-    :after counsel
+    :requires counsel
     :bind* ("S-M-SPC" . counsel-osx-app)
     :commands counsel-osx-app
     :config
@@ -887,8 +887,7 @@
                 "/Applications/Xcode.app/Contents/Applications")))
 
   (use-package counsel-projectile
-    :after counsel
-    :requires projectile
+    :requires (counsel projectile)
     :bind (:map counsel-projectile-mode-map
                 ([remap projectile-ag] . counsel-projectile-rg))
     :config
@@ -1131,6 +1130,7 @@
   :bind ("C-c e v" . edit-variable))
 
 (use-package editorconfig
+  :if (file-exists-p (expand-file-name ".editorconfig" (getenv "HOME")))
   :defer t
   :config
   (editorconfig-mode 1))
@@ -3233,24 +3233,25 @@ _h_: paragraph
   :mode "\\.toml\\'")
 
 (use-package treemacs
-  :unless noninteractive
-  :defer t
-  :bind (([f8]          . treemacs-toggle)
+  :commands (treemacs)
+  :bind (([f8]          . treemacs)
          ("M-0"         . treemacs-select-window)
          ("C-c 1"       . treemacs-delete-other-windows)
-         ("C-c t t"     . treemacs-toggle)
+         ("C-c t t"     . treemacs)
          ("C-c t T"     . treemacs)
          ("C-c t B"     . treemacs-bookmark)
          ("C-c t C-t"   . treemacs-find-file)
          ("C-c t M-t"   . treemacs-find-tag))
   :init
   (use-package treemacs-projectile
-    :requires projectile
+    :requires (treemacs projectile)
     :defer t
     :config
     (setq treemacs-header-function #'treemacs-projectile-create-header)
     :bind (("C-c t P"    . treemacs-projectile)
            ("C-c t p"    . treemacs-projectile-toggle)))
+
+  (setq treemacs--persit-file (expand-file-name "treemacs-cache" user-data-directory))
   :config
   (setq treemacs-change-root-without-asking nil
         treemacs-collapse-dirs              (if (executable-find "python") 3 0)
