@@ -2984,7 +2984,7 @@ _h_: paragraph
              recentf-add-file
              recentf-apply-filename-handlers)
   :preface
-  (defun recentf-add-dired-directory ()
+  (defun my/recentf-add-dired-directory ()
     "Add directory directory to the `recentf` list."
     (if (and dired-directory
              (file-directory-p dired-directory)
@@ -3001,7 +3001,7 @@ _h_: paragraph
         recentf-auto-cleanup 'never)
   :config
   (recentf-mode 1)
-  :hook (dired-mode . recentf-add-dired-directory))
+  :hook (dired-mode . my/recentf-add-dired-directory))
 
 (use-package rect
   :straight f
@@ -3162,7 +3162,7 @@ _h_: paragraph
   :hook (after-init . my/server-enable))
 
 (use-package shell-pop
-  :if (or (eq system-type 'gnu/linux) (eq system-type 'darwin))
+  :if (memq system-type '(gnu/linux darwin))
   :bind (("C-t" . shell-pop))
   :config
   (setq shell-pop-shell-type (quote ("ansi-term" "*ansi-term*" (lambda nil (ansi-term shell-pop-term-shell))))
@@ -3171,18 +3171,21 @@ _h_: paragraph
 
 (use-package slime
   :defer t
+  :if (executable-find "clisp")
   :commands slime slime-insert-balanced-comments slime-reindent-defun slime-selector
   :bind (:map slime-repl-mode-map
               ("C-c ;" . slime-insert-balanced-cmments)
               ("M-q"   . slime-reindent-defun)
               ("M-l"   . slime-selector))
   :init
-  (if (executable-find "clisp")
-      g      (setq inferior-lisp-program "clisp"
-                   slime-contribs '(slime-fancy)))
-  :config
   (use-package cldoc
-    :hook ((lisp-mode ilisp-mode slime-repl-mode) . turn-on-cldoc-mode)))
+    :requires (slime)
+    :if (executable-find "clisp")
+    :hook ((lisp-mode ilisp-mode slime-repl-mode) . turn-on-cldoc-mode))
+  
+  (when (executable-find "clisp")
+    (setq inferior-lisp-program "clisp"
+          slime-contribs        '(slime-fancy))))
 
 (use-package smart-newline
   :diminish
