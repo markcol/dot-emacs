@@ -911,6 +911,20 @@
 (use-package csv-mode
   :mode "\\.csv\\'")
 
+(use-package dashboard
+  :preface
+  (defun my/dashboard-banner ()
+    "Set a dashboard banner including information on package initialization
+  time and garbage collections."""
+  (setq dashboard-banner-logo-title
+        (format "Emacs ready in %.2f seconds with %d garbage collections."
+                (float-time (time-subtract after-init-time before-init-time)) gcs-done)))
+  :config
+  (setq dashboard-startup-banner 'logo)
+  (dashboard-setup-startup-hook)
+  :hook ((after-init     . dashboard-refresh-buffer)
+         (dashboard-mode . my/dashboard-banner)))
+
 (use-package diff-hl
   :disabled
   :commands (diff-hl-mode diff-hl-dired-mode)
@@ -2406,43 +2420,43 @@ _h_: paragraph
   :init
   (load "org-settings" :noerror)
   (setq org-M-RET-may-split-line nil
-	      org-directory user-org-directory
-	      org-enforce-todo-dependencies t
-	      org-fast-tag-selection-single-key 'expert
-	      org-footnote-auto-adjust nil
-	      org-footnote-define-inline t
-	      org-hide-leading-stars t
-	      org-highlight-latex-and-related '(latex)
-	      org-log-into-drawer "LOGBOOK"
-	      org-outline-path-complete-in-steps t
-	      org-refile-targets '((org-agenda-files :maxlevel . 3) (nil :maxlevel . 3))
-	      org-refile-use-outline-path 'file
-	      org-tag-alist '((:startgroup . nil)
-			                  ("@call" . ?c)
-			                  ("@office" . ?o)
-			                  ("@home" . ?h)
-			                  ("@read" . ?r)
-			                  ("@computer" . ?m)
-			                  ("@dev" . ?d)
-			                  ("@write" . ?w)
-			                  (:endgroup . nil)
-			                  ("REFILE" . ?f)
-			                  ("SOMEDAY" . ?s)
-			                  ("PROJECT" . ?p))
-	      org-tags-exclude-from-inheritance '("@call"
-					                                  "@office"
-					                                  "@home"
-					                                  "@read"
-					                                  "@computer"
-					                                  "@dev"
-					                                  "@write"
-					                                  "PROJECT")
-	      org-todo-keywords '((sequence "TODO(t)" "|" "DONE(d!)")
-			                      (sequence "WAITING(w@/!)" "|" "CANCELLED" "DELEGATED(e@)"))
-	      org-use-fast-todo-selection t
-	      org-use-speed-commands t
-	      org-use-sub-superscripts "{}"
-	      org-use-tag-inheritance t)
+        org-directory user-org-directory
+        org-enforce-todo-dependencies t
+        org-fast-tag-selection-single-key 'expert
+        org-footnote-auto-adjust nil
+        org-footnote-define-inline t
+        org-hide-leading-stars t
+        org-highlight-latex-and-related '(latex)
+        org-log-into-drawer "LOGBOOK"
+        org-outline-path-complete-in-steps t
+        org-refile-targets '((org-agenda-files :maxlevel . 3) (nil :maxlevel . 3))
+        org-refile-use-outline-path 'file
+        org-tag-alist '((:startgroup . nil)
+                        ("@call" . ?c)
+                        ("@office" . ?o)
+                        ("@home" . ?h)
+                        ("@read" . ?r)
+                        ("@computer" . ?m)
+                        ("@dev" . ?d)
+                        ("@write" . ?w)
+                        (:endgroup . nil)
+                        ("REFILE" . ?f)
+                        ("SOMEDAY" . ?s)
+                        ("PROJECT" . ?p))
+        org-tags-exclude-from-inheritance '("@call"
+                                            "@office"
+                                            "@home"
+                                            "@read"
+                                            "@computer"
+                                            "@dev"
+                                            "@write"
+                                            "PROJECT")
+        org-todo-keywords '((sequence "TODO(t)" "|" "DONE(d!)")
+                            (sequence "WAITING(w@/!)" "|" "CANCELLED" "DELEGATED(e@)"))
+        org-use-fast-todo-selection t
+        org-use-speed-commands t
+        org-use-sub-superscripts "{}"
+        org-use-tag-inheritance t)
   
   :config
   (use-package org-agenda
@@ -2824,9 +2838,9 @@ _h_: paragraph
     :defer t)
   
   :config
-  ;; Set the initial buffer to be the org agenda view.
   (setq org-default-notes-file (expand-file-name "inbox.org" org-directory))
-  (setq initial-buffer-choice org-default-notes-files)
+  ;; Set the initial buffer to be the org agenda view.
+  ;; (setq initial-buffer-choice org-default-notes-files)
   
   :hook (org-export-before-processing . my/delete-org-comments))
 
@@ -2834,10 +2848,10 @@ _h_: paragraph
   :diminish
   :defer t
   :commands (paredit-mode paredit-backward-delete paredit-close-round paredit-newline)
-  :bind (:map lisp-mode-map
-              ("<return>" . paredit-newline))
-  :bind (:map emacs-lisp-mode-map
-              ("<return>" . paredit-newline))
+  ;; :bind (:map lisp-mode-map
+  ;;             ("<return>" . paredit-newline))
+  ;; :bind (:map emacs-lisp-mode-map
+  ;;             ("<return>" . paredit-newline))
   ;; :bind (("C-c ( n"    . paredit-add-to-next-list)
   ;;        ("C-c ( p"    . paredit-add-to-previous-list)
   ;;        ("C-c ( j"    . paredit-join-with-next-list)
@@ -2848,22 +2862,155 @@ _h_: paragraph
   ;;             ("M-I"   . paredit-splice-sexp)
   ;;             ("C-M-l" . paredit-recentre-on-sexp))
   :preface
-  (defun my/paredit-mode-hook ()
+  (defgroup paredit-ext nil
+    "Extra functions for paredit"
+    :group 'paredit)
+
+  (defun mark-containing-sexp ()
+    (interactive)
+    (paredit-backward-up)
+    (mark-sexp))
+
+  (defun paredit-barf-all-the-way-backward ()
+    (interactive)
+    (paredit-split-sexp)
+    (paredit-backward-down)
+    (paredit-splice-sexp))
+
+  (defun paredit-barf-all-the-way-forward ()
+    (interactive)
+    (paredit-split-sexp)
+    (paredit-forward-down)
+    (paredit-splice-sexp)
+    (if (eolp) (delete-horizontal-space)))
+
+  (defun paredit-slurp-all-the-way-backward ()
+    (interactive)
+    (catch 'done
+      (while (not (bobp))
+        (save-excursion
+          (paredit-backward-up)
+          (if (eq (char-before) ?\()
+              (throw 'done t)))
+        (paredit-backward-slurp-sexp))))
+
+  (defun paredit-slurp-all-the-way-forward ()
+    (interactive)
+    (catch 'done
+      (while (not (eobp))
+        (save-excursion
+          (paredit-forward-up)
+          (if (eq (char-after) ?\))
+              (throw 'done t)))
+        (paredit-forward-slurp-sexp))))
+
+  (defun paredit--is-at-start-of-sexp ()
+    (and (looking-at "(\\|\\[")
+         (not (nth 3 (syntax-ppss))) ;; inside string
+         (not (nth 4 (syntax-ppss))))) ;; inside comment
+
+  (defun paredit-duplicate-closest-sexp ()
+    (interactive)
+    ;; skips to start of current sexp
+    (while (not (paredit--is-at-start-of-sexp))
+      (paredit-backward))
+    (set-mark-command nil)
+    ;; while we find sexps we move forward on the line
+    (while (and (bounds-of-thing-at-point 'sexp)
+                (<= (point) (car (bounds-of-thing-at-point 'sexp)))
+                (not (= (point) (line-end-position))))
+      (forward-sexp)
+      (while (looking-at " ")
+        (forward-char)))
+    (kill-ring-save (mark) (point))
+    ;; go to the next line and copy the sexprs we encountered
+    (paredit-newline)
+    (yank)
+    (exchange-point-and-mark))
+
+  (defvar electrify-return-match
+    "[\]}\)\"]"
+    "If this regexp matches the text after the cursor, do an \"electric\"
+  return.")
+  
+  (defun my/electrify-return-if-match (arg)
+    "If the text after the cursor matches `electrify-return-match' then
+  open and indent an empty line between the cursor and the text.  Move the
+  cursor to the new line."
+    (interactive "P")
+    (let ((case-fold-search nil))
+      (if (looking-at electrify-return-match)
+	  (save-excursion (newline-and-indent)))
+      (newline arg)
+      (indent-according-to-mode)))
+
+  (defun my/override-slime-repl-bindings-with-paredit ()
+    "Prevent SLIME REPL from grabbling DEL."
+    (define-key slime-repl-mode-map
+      (read-kbd-macro paredit-backward-delete-key) nil))
+
+  (defun my/paredit-delete-indentation (&optional arg)
+    "Handle joining lines that end in a comment."
+    (interactive "*P")
+    (let (comt)
+      (save-excursion
+        (move-beginning-of-line (if arg 1 0))
+        (when (skip-syntax-forward "^<" (point-at-eol))
+	  (setq comt (delete-and-extract-region (point) (point-at-eol)))))
+      (delete-indentation arg)
+      (when comt
+        (save-excursion
+      	  (move-end-of-line 1)
+	  (insert " ")
+	  (insert comt)))))
+  
+  (defun my/paredit-mode-config ()
     "Paredit mode customizations."
+    (paredit-mode +1)
     (require 'eldoc)
     ;; (unbind-key "M-r" paredit-mode-map)
     ;; (unbind-key "M-s" paredit-mode-map)
-    (eldoc-add-command 'paredit-backward-delete
-		       'paredit-close-round)
-    (paredit-mode))
+    (eldoc-add-command #'paredit-backward-delete
+                       #'paredit-close-round
+                       #'my/electify-return-if-match)
+    (eldoc-mode +1)
+    (local-set-key (kbd "RET") #'my/electrify-return-if-match)
+    (bind-key [remap join-lines] #'my/paredit-delete-indentation paredit-mode-map))
   
-  :init
-  (use-package paredit-ext
-    :straight f
-    :after paredit
-    :load-path "lisp")
+  :config
+  (nconc paredit-commands
+         '("Extreme Barfage & Slurpage"
+           (("C-M-)")
+            paredit-slurp-all-the-way-forward
+            ("(foo (bar |baz) quux zot)"
+             "(foo (bar |baz quux zot))")
+            ("(a b ((c| d)) e f)"
+             "(a b ((c| d)) e f)"))
+           (("C-M-}")
+            paredit-barf-all-the-way-forward
+            ("(foo (bar |baz quux) zot)"
+             "(foo (bar|) baz quux zot)"))
+           (("C-M-(")
+            paredit-slurp-all-the-way-backward
+            ("(foo bar (baz| quux) zot)"
+             "((foo bar baz| quux) zot)")
+            ("(a b ((c| d)) e f)"
+             "(a b ((c| d)) e f)"))
+           (("C-M-{")
+            paredit-barf-all-the-way-backward
+            ("(foo (bar baz |quux) zot)"
+             "(foo bar baz (|quux) zot)"))
+           (("C-M->")
+            paredit-duplicate-closest-sexp
+            ("(foo | bar)"
+             "(foo bar)(foo bar)"))))
 
-  :hook ((lisp-mode emacs-lisp-mode) . my/paredit-mode-hook))
+  (paredit-define-keys)
+  (paredit-annotate-mode-with-examples)
+  (paredit-annotate-functions-with-examples)
+
+  :hook ((lisp-mode emacs-lisp-mode lisp-interaction-mode scheme-mode ielm-mode eval-expression-minibuffer-setup) . my/paredit-mode-config)
+  :hook (slime-repl-mode . (my/override-slime-repl-bindings-with-paredit my/paredit-mode-config)))
 
 (use-package pdf-tools
   :if (executable-find "pdf-tools")
