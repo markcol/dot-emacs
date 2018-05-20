@@ -873,9 +873,9 @@ Used as hook function for `kill-emacs-hook', because
   (global-git-gutter-mode +1))
 
 (use-package lsp-mode
-  :init
+  :config
   (use-package lsp-ui
-    :after (lsp-mode imenu)
+    :after (lsp-mode)
     :config
     (with-eval-after-load 'flycheck
       (require 'lsp-flycheck))
@@ -896,9 +896,16 @@ Used as hook function for `kill-emacs-hook', because
       (flyspell-mode t))
     (turn-on-auto-fill))
   :hook (magit-log-edit-mode . my/magit-log-edit-mode-hook)
+  :init
+  (setq magit-set-upstream-on-push t)
   :config
   ;; no longer need vc-git
   (delete 'Git vc-handled-backends)
+
+  ;; Check excessively long summary lines in commit messages
+  (add-to-list 'git-commit-style-convention-checks 'overlong-summary-line)
+
+  ;; Refresh git-gutter buffers after Magit status changes
   (with-eval-after-load 'git-gutter
     (add-hook 'magit-post-refresh-hook #'git-gutter:update-all-windows)))
 
