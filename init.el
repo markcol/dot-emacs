@@ -897,7 +897,7 @@ Used as hook function for `kill-emacs-hook', because
     :diminish git-gutter-mode
     :init
     (global-git-gutter-mode +1)
-    :hook (magit-refresh-file-buffer . git-gutter:update-all-windows))
+    :hook (magit-post-refresh . git-gutter:update-all-windows))
   :config
   ;; no longer need vc-git
   (delete 'Git vc-handled-backends))
