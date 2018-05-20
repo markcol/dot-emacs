@@ -581,6 +581,14 @@
          ("M-s G" . grep)
          ("M-s d" . find-grep-dired)))
 
+(use-package hl-todo
+  :defer t
+  :bind (:map hl-todo-mode-map
+              ("C-x P" . hl-todo-previous)
+              ("C-x N" . hl-todo-next)
+              ("C-x O" . hl-todo-occur))
+  :hook ((prog-mode . hl-todo-mode)))
+
 (use-package imenu
   :defer t
   :init
