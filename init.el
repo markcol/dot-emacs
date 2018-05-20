@@ -882,7 +882,6 @@ Used as hook function for `kill-emacs-hook', because
   :bind ("C-c e m" . macrostep-expand))
 
 (use-package magit
-  :defer t
   :bind (("C-c g" . magit-status))
   :preface
   (defun my/magit-log-edit-mode-hook ()
@@ -897,8 +896,7 @@ Used as hook function for `kill-emacs-hook', because
     :after (magit)
     :diminish git-gutter-mode
     :init
-    (global-git-gutter-mode t)
-    (add-hook 'magit-refresh-file-buffer-hook #'git-gutter:update-all-windows)
+    (global-git-gutter-mode +1)
     :hook (magit-refresh-file-buffer . git-gutter:update-all-windows))
   :config
   ;; no longer need vc-git
