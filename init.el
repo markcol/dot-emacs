@@ -25,6 +25,16 @@
 
 (add-hook 'after-init-hook #'my/restore-default-values)
 
+(defun my/after-init ()
+  "Report loading time after packages are loaded."
+  (let ((elapsed
+         (float-time
+          (time-subtract (current-time) emacs-start-time))))
+    (message "Loading %s...done (%.3fs) [after-init]"
+             load-file-name elapsed)))
+
+(add-hook 'after-init-hook #'my/after-init t)
+
 ;; Bootstrap straight.el
 (let ((bootstrap-file (concat user-emacs-directory "straight/repos/straight.el/bootstrap.el"))
       (bootstrap-version 3))
@@ -117,7 +127,8 @@
       scroll-conservatively 100000
       scroll-margin 0
       scroll-preserve-screen-position 1
-      sentance-end-double-space nil        ; sentances can end with a '. ', rather than '.  '
+      ;; Sentances can end with a '. ', rather than '.  '
+      sentance-end-double-space nil
       tab-width 2)
 
 (setq-default tab-wdith 2)
@@ -175,9 +186,10 @@
 
 (defun comment-dwim-line (&optional arg)
   "Replacement for the comment-dwim command.
-   If no region is selected and current line is not blank and we are not at the end of the line,
-   then comment current line.
-   Replaces default behaviour of comment-dwim, when it inserts comment at the end of the line."
+If no region is selected and current line is not blank and we are
+not at the end of the line, then comment current line.  Replaces
+default behaviour of comment-dwim, when it inserts comment at the
+end of the line."
   (interactive "*P")
   (comment-normalize-vars)
   (if (and (not (region-active-p)) (not (looking-at "[ \t]*$")))
@@ -186,12 +198,12 @@
 
 (defun narrow-or-widen-dwim (p)
   "Widen if buffer is narrowed, narrow-dwim otherwise.
-  Dwim means: region, org-src-block, org-subtree, or defun,
-  whichever applies first. Narrowing to org-src-block actually
-  calls `org-edit-src-code'.
+Dwim means: region, org-src-block, org-subtree, or defun,
+whichever applies first. Narrowing to org-src-block actually
+calls `org-edit-src-code'.
 
-  With prefix P, don't widen, just narrow even if buffer is
-  already narrowed."
+With prefix P, don't widen, just narrow even if buffer is
+already narrowed."
   (interactive "P")
   (declare (interactive-only))
   (cond ((and (buffer-narrowed-p) (not p)) (widen))
@@ -241,8 +253,9 @@
 
 (defun my/sort-sexps-in-region (beg end)
   "Can be handy for sorting out duplicates.
-   Sorts the sexps from BEG to END. Leaves the point at where it
-   couldn't figure things out (ex: syntax errors)."
+
+Sorts the sexps from BEG to END. Leaves the point at where it
+couldn't figure things out (ex: syntax errors)."
   (interactive "r")
   (let ((input (buffer-substring beg end))
         list last-point form result)
@@ -400,18 +413,15 @@
 (use-package auto-compile
   :demand t
   :init
-  (setq auto-compile-display-buffer nil
-        auto-compile-mode-line-count t)
+  (setq auto-compile-display-buffer               nil
+        auto-compile-mode-line-counter            t
+        auto-compile-source-recreate-deletes-dest t
+        auto-compile-toggle-deletes-nonlib-dest   t
+        auto-compile-update-autoloads             t)
   :config
   (auto-compile-on-load-mode)
   (auto-compile-on-save-mode)
-  (setq auto-compile-display-buffer               nil)
-  (setq auto-compile-mode-line-counter            t)
-  (setq auto-compile-source-recreate-deletes-dest t)
-  (setq auto-compile-toggle-deletes-nonlib-dest   t)
-  (setq auto-compile-update-autoloads             t)
-  (add-hook 'auto-compile-inhibit-compile-hook
-            #'auto-compile-inhibit-compile-detached-git-head))
+  :hook (auto-compile-inhibit-comnpile . #'auto-compile-inhibit-compile-detached-git-head))
 
 (use-package auto-fill-mode
   :straight f
@@ -449,8 +459,8 @@
   :preface
   (defun my/bm-save-all-buffers ()
     "Save all buffers and update the bm repository.
-  Used as hook function for `kill-emacs-hook`, because
-  `kill-buffer-hook` is not called when Emacs is killed."
+Used as hook function for `kill-emacs-hook', because
+`kill-buffer-hook' is not called when Emacs is killed."
     (bm-buffer-save-all)
     (bm-repository-save))
   :init
@@ -881,14 +891,15 @@
     (when (featurep 'flyspell)
       (flyspell-mode t))
     (turn-on-auto-fill))
+  :hook (magit-log-edit-mode . my/magit-log-edit-mode-hook)
   :init
   (use-package git-gutter-fringe
     :diminish git-gutter-mode
     :init
     (global-git-gutter-mode t))
   :config
-  (delete 'Git vc-handled-backends)     ; no longer need vc-git
-  :hook (magit-log-edit-mode . my/magit-log-edit-mode-hook))
+  ;; no longer need vc-git
+  (delete 'Git vc-handled-backends))
 
 (use-package markdown-mode
   :mode (("\\`README\\.md\\'" . gfm-mode)
@@ -1219,8 +1230,8 @@
 (use-package whitespace
   :defer t
   :init
-  (setq whitespace-line-column 80) ;; limit line length
-  (setq whitespace-style '(face tabs empty trailing lines-tail))
+  (setq whitespace-line-column 80)
+  (setq whitespace-style '(face tabs empty trailing))
   :hook ((prog-mode text-mode) . whitespace-mode)
   :hook (before-save . whitespace-cleanup))
 
@@ -1249,15 +1260,6 @@
 (let ((elapsed (float-time (time-subtract (current-time)
                                           emacs-start-time))))
   (message "Loading %s...done (%.3fs)" load-file-name elapsed))
-
-(defun my/after-init ()
-  (let ((elapsed
-         (float-time
-          (time-subtract (current-time) emacs-start-time))))
-    (message "Loading %s...done (%.3fs) [after-init]"
-             load-file-name elapsed)))
-
-(add-hook 'after-init-hook #'my/after-init t)
 
 (provide 'init)
 ;;; init.el ends here
