@@ -483,6 +483,27 @@ Used as hook function for `kill-emacs-hook', because
   :config
   (global-company-mode))
 
+(use-package counsel
+  :after swiper
+  :bind (("M-x"	  . counsel-M-x)
+         ("C-x C-f"	  . counsel-find-file)
+         ("C-h f"	  . counsel-describe-function)
+         ("C-h v"	  . counsel-describe-variable)
+         ("C-h i"	  . counsel-info-lookup-symbol)
+         ("C-h u"	  . counsel-unicode-char)
+         ("C-c k"	  . counsel-rg)
+         ("C-x l"	  . counsel-locate)
+         ("C-c g"	  . counsel-git-grep)
+         ("C-c h i"	  . counsel-imenu)
+         ("C-x p"	  . counsel-list-processes)
+         ("M-y"         . counsel-yank-pop))
+  :config
+  (ivy-set-actions
+   'counsel-find-file
+   '(("j" find-file-other-window "other")))
+  (ivy-set-actions 'counsel-git-grep
+                   '(("j" find-file-other-window "other"))))
+
 (use-package crux
   ;; https://github.com/bbatsov/crux
   :bind (([remap move-beginning-of-line] . crux-move-beginning-of-line)
@@ -508,13 +529,16 @@ Used as hook function for `kill-emacs-hook', because
 
 (use-package dired
   :straight f
-  :init
+  :config
   (require 'dired-x)
   (use-package dired-details
     :init
     (setq-default dired-details-hidden-string "--- ")
     :config
-    (dired-details-install)))
+    (dired-details-install))
+  (when (memq system-type '(gnu/linux darwin))
+    ;; Show human-readable file sizes and sort numbers properly
+    (setq-default dired-listing-switches "-alhv")))
 
 (use-package edit-server
   :if window-system
@@ -625,20 +649,20 @@ Used as hook function for `kill-emacs-hook', because
     (buffer-face-mode)
     (text-scale-adjust 1))
   :hook (Info-mode . my/Info-mode-config)
-  :init
+  :config
   (use-package info-look
     :after (info)
     :defer t
-    :init
-    (autoload 'info-lookup-add-help "info-look")
-    (use-package info-lookmore
-      :after (info info-look)
-      :config
-      (info-lookmore-elisp-cl)
-      (info-lookmore-apropos-elisp)
-      (info-lookmore-elisp-userlast)
-      (with-eval-after-load 'gnus
-        (info-lookmore-elisp-gnus)))))
+    :config
+    (autoload 'info-lookup-add-help "info-look"))
+  (use-package info-lookmore
+    :after (info info-look)
+    :config
+    (info-lookmore-elisp-cl)
+    (info-lookmore-apropos-elisp)
+    (info-lookmore-elisp-userlast)
+    (with-eval-after-load 'gnus
+      (info-lookmore-elisp-gnus))))
 
 (use-package isearch
   :disabled
@@ -679,7 +703,8 @@ Used as hook function for `kill-emacs-hook', because
               ("C-i"   . ivy-partial-or-done)
               ("C-r"   . ivy-previous-line-or-history)
               ("M-r"   . ivy-reverse-i-search)
-              ("M-j"   . my/ivy-yank-whole-word))
+              ("M-j"   . my/ivy-yank-whole-word)
+              ("M-y"   . ivy-next-line))
   :bind (:map ivy-switch-buffer-map
               ("C-k" . ivy-switch-buffer-kill))
   :preface
@@ -733,79 +758,41 @@ Used as hook function for `kill-emacs-hook', because
         (insert (replace-regexp-in-string "  +" " " amend)))))
 
   :init
-  (use-package counsel
-    :after (swiper)
-    :bind (("M-x"	  . counsel-M-x)
-           ("C-x C-f"	  . counsel-find-file)
-           ("C-h f"	  . counsel-describe-function)
-           ("C-h v"	  . counsel-describe-variable)
-           ("C-h i"	  . counsel-info-lookup-symbol)
-           ("C-h u"	  . counsel-unicode-char)
-           ("C-c k"	  . counsel-rg)
-           ("C-x l"	  . counsel-locate)
-           ("C-c g"	  . counsel-git-grep)
-           ("C-c h i"	  . counsel-imenu)
-           ("C-x p"	  . counsel-list-processes)
-           ("M-y"         . counsel-yank-pop))
-    :bind (:map ivy-minibuffer-map
-                ("M-y"    . ivy-next-line))
-    :config
-    (ivy-set-actions
-     'counsel-find-file
-     '(("j" find-file-other-window "other")))
-    (ivy-set-actions 'counsel-git-grep
-                     '(("j" find-file-other-window "other"))))
-  (use-package swiper
-    :diminish ivy-mode
-    :after ivy
-    :bind (:map swiper-map
-                ("M-y" . yank)
-                ("M-%" . swiper-query-replace)
-                ("C-." . swiper-avy)
-                ("M-c" . my/swiper-mc-fixed))
-    :bind (:map isearch-mode-map
-                ("C-o" . swiper-from-isearch))
-    :preface
-    (defun my/swiper-mc-fixed ()
-      (interactive)
-      (setq swiper--current-window-start nil)
-      (swiper-mc))
-    :config
-    (use-package ivy-pass
-      :defer t
-      :commands ivy-pass)
+  (setq ivy-count-format             ""
+	ivy-dynamic-exhibit-delay-ms 200
+	ivy-height                   10
+	ivy-initial-inputs-alist     nil
+	ivy-magic-tilde              nil
+	ivy-re-builders-alist        '((t . ivy--regex-ignore-order))
+	ivy-use-selectable-promnpt   t
+	ivy-use-virtual-buffers      t
+	ivy-wrap                     t)
+  :config
+  (use-package ivy-pass
+    :demand t
+    :commands ivy-pass)
 
-    (use-package ivy-rich
-      :demand t
-      :config
-      (ivy-set-display-transformer 'ivy-switch-buffer
-                                   'ivy-rich-switch-buffer-transformer)
-      (setq ivy-virtual-abbreviate 'full
-            ivy-rich-switch-buffer-align-virtual-buffer t
-            ivy-rich-path-style 'abbrev))
-
-    (use-package ivy-hydra
-      :demand t
-      :after (ivy hydra))
-
-    (setq ivy-count-format             ""
-	  ivy-dynamic-exhibit-delay-ms 200
-	  ivy-height                   10
-	  ivy-initial-inputs-alist     nil
-	  ivy-magic-tilde              nil
-	  ivy-re-builders-alist        '((t . ivy--regex-ignore-order))
-	  ivy-use-selectable-promnpt   t
-	  ivy-use-virtual-buffers      t
-	  ivy-wrap                     t)
+  (use-package ivy-rich
+    :demand t
     :config
-    (ivy-mode 1)
-    (ivy-set-occur 'ivy-switch-buffer 'ivy-switch-buffer-occur)
-    (with-eval-after-load 'flx
-      (setq ivy-re-builders-alist '((t . ivy--regex-fuzzy))))))
+    (ivy-set-display-transformer 'ivy-switch-buffer
+                                 'ivy-rich-switch-buffer-transformer)
+    (setq ivy-virtual-abbreviate 'full
+          ivy-rich-switch-buffer-align-virtual-buffer t
+          ivy-rich-path-style 'abbrev))
+
+  (use-package ivy-hydra
+    :demand t
+    :after (ivy hydra))
+
+  (ivy-mode 1)
+  (ivy-set-occur 'ivy-switch-buffer 'ivy-switch-buffer-occur)
+  (with-eval-after-load 'flx
+    (setq ivy-re-builders-alist '((t . ivy--regex-fuzzy)))))
 
 (use-package json-mode
   :mode "\\.json\\'"
-  :init
+  :config
   (use-package json-reformat)
   (use-package json-snatcher))
 
@@ -820,7 +807,7 @@ Used as hook function for `kill-emacs-hook', because
                  '("Used Packages"
                    "\\(^\\s-*(use-package +\\)\\(\\_<.+\\_>\\)" 2))
     )
-  :init
+  :config
   (dolist (mode '(ielm-mode
                   inferior-emacs-lisp-mode
                   inferior-lisp-mode
@@ -884,7 +871,8 @@ Used as hook function for `kill-emacs-hook', because
     :hook (lsp-mode . lsp-ui-mode)))
 
 (use-package macrostep
-  :bind ("C-c e m" . macrostep-expand))
+  :bind (:map emacs-lisp-mode-map
+              ("C-c e m" . macrostep-expand)))
 
 (use-package magit
   :bind (("C-c g" . magit-status))
@@ -920,7 +908,7 @@ Used as hook function for `kill-emacs-hook', because
   :config
   (use-package markdown-preview-mode
     :if (executable-find "multimarkdown")
-    :config
+    :init
     (setq markdown-preview-stylesheets
           (list (concat "https://github.com/dmarcotte/github-markdown-preview/"
 		        "blob/master/data/css/github.css"))))
@@ -969,10 +957,9 @@ Used as hook function for `kill-emacs-hook', because
     (eldoc-add-command 'paredit-backward-delete
 		       'paredit-close-round)
     (paredit-mode))
-  :init
+  :config
   (use-package paredit-ext
     :straight f
-    :after paredit
     :load-path "lisp")
   :hook ((lisp-mode emacs-lisp-mode) . my/paredit-mode-hook))
 
@@ -1101,14 +1088,12 @@ Used as hook function for `kill-emacs-hook', because
               ("->" . (?· (Br . Bl) ?→)))
       (push it prettify-symbols-alist)))
 
-  :init
-  (require 'rust-mode)
+  :config
   (use-package cargo
-    :after rust-mode
     :hook (rust-mode . cargo-minor-mode))
 
   (use-package lsp-rust
-    :after (lsp-mode lsp-ui rust-mode)
+    :after (lsp-mode lsp-ui)
     :if (executable-find "rustup")
     :init
     (setq lsp-rust-rls-command '("rustup" "run" "nightly" "rls"))
@@ -1138,10 +1123,10 @@ Used as hook function for `kill-emacs-hook', because
     :hook (rust-mode . (racer-mode eldoc-mode)))
 
   (use-package flycheck-rust
-    :after (flycheck rust-mode)
+    :after (flycheck)
     :config
     (flycheck-rust-setup))
-  :config
+
   (add-zeal-or-dash-docs rust-mode "rust")
   :hook (rust-mode . my/rust-mode-hook))
 
@@ -1168,6 +1153,21 @@ Used as hook function for `kill-emacs-hook', because
 (use-package string-edit
   :bind ("C-c C-'" . string-edit-at-point))
 
+(use-package swiper
+  :after ivy
+  :bind (:map swiper-map
+              ("M-y" . yank)
+              ("M-%" . swiper-query-replace)
+              ("C-." . swiper-avy)
+              ("M-c" . my/swiper-mc-fixed))
+  :bind (:map isearch-mode-map
+              ("C-o" . swiper-from-isearch))
+  :preface
+  (defun my/swiper-mc-fixed ()
+    (interactive)
+    (setq swiper--current-window-start nil)
+    (swiper-mc)))
+
 (use-package toml-mode
   :mode "\\.toml\\'")
 
@@ -1182,14 +1182,6 @@ Used as hook function for `kill-emacs-hook', because
          ("C-c t C-t"   . treemacs-find-file)
          ("C-c t M-t"   . treemacs-find-tag))
   :init
-  (use-package treemacs-projectile
-    :after (treemacs projectile)
-    :defer t
-    :config
-    (setq treemacs-header-function #'treemacs-projectile-create-header)
-    :bind (("C-c t P"    . treemacs-projectile)
-           ("C-c t p"    . treemacs-projectile-toggle)))
-
   (setq treemacs--persit-file               (expand-file-name "treemacs-cache" user-data-directory)
         treemacs-change-root-without-asking nil
         treemacs-collapse-dirs              (if (executable-find "python") 3 0)
@@ -1214,6 +1206,13 @@ Used as hook function for `kill-emacs-hook', because
   :config
   (treemacs-follow-mode t)
   (treemacs-filewatch-mode t))
+
+(use-package treemacs-projectile
+  :after (treemacs projectile)
+  :config
+  (setq treemacs-header-function #'treemacs-projectile-create-header)
+  :bind (("C-c t P"    . treemacs-projectile)
+         ("C-c t p"    . treemacs-projectile-toggle)))
 
 (use-package web-mode
   :mode ("\\.html\\'"
@@ -1252,6 +1251,11 @@ Used as hook function for `kill-emacs-hook', because
   :mode ("/\\.emacs\\.d/snippets" . snippet-mode)
   :bind (:map yas-keymap
               ("C-i" . yas-next-field-or-maybe-expand))
+  :preface
+  (defun my/snippet-disable-newline ()
+    "Disable newline at end of file to avoid extra newlines during expansion."
+    (setq-local require-final-newline nil))
+  :hook (snippet-mode . my/snippet-disable-newline)
   :config
   (yas-load-directory (expand-file-name "snippets" user-emacs-directory))
   (yas-global-mode 1))
