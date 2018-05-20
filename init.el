@@ -109,7 +109,7 @@
 (dolist (dir (list user-data-directory user-document-directory user-org-directory))
   (make-directory dir t))
 
-(load (expand-file-name "config" user-emacs-directory) :noerror)
+(load (expand-file-name "settings" user-emacs-directory) :noerror)
 
 (show-paren-mode 1)
 (size-indication-mode 1)
