@@ -867,16 +867,21 @@ Used as hook function for `kill-emacs-hook', because
   :hook ((emacs-lisp-mode lisp-mode) . my/lisp-mode-hook)
   :hook ((emacs-lisp-mode lisp-mode) . check-parens))
 
+(use-package git-gutter-fringe
+  :diminish git-gutter-mode
+  :config
+  (global-git-gutter-mode +1))
+
 (use-package lsp-mode
-  :after prog-mode
   :init
   (use-package lsp-ui
     :after (lsp-mode imenu)
-    :hook (lsp-after-open . lsp-enable-imenu)
-    :hook (lsp-mode       . lsp-ui-mode))
-  (use-package lsp-flycheck
-    :straight f
-    :after (lsp-mode lsp-ui flycheck)))
+    :config
+    (with-eval-after-load 'flycheck
+      (require 'lsp-flycheck))
+    (with-eval-after-load 'imenu
+      (add-hook 'lsp-after-open-hook #'lsp-enable-imenu))
+    :hook (lsp-mode . lsp-ui-mode)))
 
 (use-package macrostep
   :bind ("C-c e m" . macrostep-expand))
@@ -891,16 +896,11 @@ Used as hook function for `kill-emacs-hook', because
       (flyspell-mode t))
     (turn-on-auto-fill))
   :hook (magit-log-edit-mode . my/magit-log-edit-mode-hook)
-  :init
-  (use-package git-gutter-fringe
-    :after (magit)
-    :diminish git-gutter-mode
-    :init
-    (global-git-gutter-mode +1)
-    :hook (git-gutter:update-hooks . (magit-after-revert-hook magit-not-reverted-hok)))
   :config
   ;; no longer need vc-git
-  (delete 'Git vc-handled-backends))
+  (delete 'Git vc-handled-backends)
+  (with-eval-after-load 'git-gutter
+    (add-hook 'magit-post-refresh-hook #'git-gutter:update-all-windows)))
 
 (use-package markdown-mode
   :mode (("\\`README\\.md\\'" . gfm-mode)
