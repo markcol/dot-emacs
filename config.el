@@ -17,7 +17,7 @@
  '(compilation-scroll-output (quote first-error))
  '(compilation-skip-threshold 2)
  '(custom-buffer-done-function (quote kill-buffer))
- '(custom-file "~/.emacs/custom.el")
+ '(custom-file "~/.emacs.d/custom.el")
  '(custom-safe-themes
    (quote
     ("3c83b3676d796422704082049fc38b6966bcad960f896669dfc21a7a37a748fa" default)))

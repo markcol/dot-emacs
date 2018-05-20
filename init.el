@@ -113,11 +113,7 @@
       confirm-kill-emacs #'y-or-n-p
       css-indent-offset 2
       echo-keystrokes 0.3
-      inhibit-splash-screen t
-      inhibit-startup-message t
-      make-backup-files nil
       mouse-drag-copy-region t
-      require-final-newline t
       scroll-conservatively 100000
       scroll-margin 0
       scroll-preserve-screen-position 1
@@ -340,7 +336,7 @@
   (defun my/unload-themes ()
     "Unload any loaded themes."
     (mapc #'disable-theme custom-enabled-themes))
-  
+
   ;; When loading a different theme, first unload any loaded themes so
   ;; that they do not leave stray customizations behind.
   (advice-add 'load-theme :before #'my/unload-themes)
@@ -353,7 +349,7 @@
         (if (fboundp 'toggle-frame-maximized)
             (add-hook 'emacs-startup-hook #'toggle-frame-maximized)
           (set-frame-size f 120 50))
-        
+
         ;; Keep the frame size, but apply font to all frames.
         (set-frame-font "Fira Code-10" nil t)
         (load-theme 'afternoon-theme t)
@@ -463,7 +459,7 @@
   :config
   ;; If you would like to cycle through bookmarks in all open buffers, uncomment the following line:
   ;; (setq bm-cycle-all-buffers t)
-  
+
   ;; Save bookmarks.
   (setq-default bm-buffer-persistence t)
 
@@ -499,6 +495,16 @@
   :if (eq system-type 'darwin)
   :ensure-system-package "dash"
   :defer t)
+
+(use-package dired
+  :straight f
+  :init
+  (require 'dired-x)
+  (use-package dired-details
+    :init
+    (setq-default dired-details-hidden-string "--- ")
+    :config
+    (dired-details-install)))
 
 (use-package edit-server
   :if window-system
@@ -594,23 +600,27 @@
 
 (use-package info
   :bind ("C-h C-i" . info-lookup-symbol)
-  :config
-  :hook (Info-mode . (lambda ()
-		                   (setq buffer-face-mode-face '(:family "Bookerly"))
-		                   (buffer-face-mode)
-		                   (text-scale-adjust 1))))
-
-(use-package info-look
-  :after (info)
-  :defer t
+  :preface
+  (defun my/Info-mode-config ()
+    "Info-mode configuration settings."
+    (setq bufer-face-mode-face '(:family "Bookerly"))
+    (buffer-face-mode)
+    (text-scale-adjust 1))
+  :hook (Info-mode . my/Info-mode-config)
   :init
-  (autoload 'info-lookup-add-help "info-look")
-  (use-package info-lookmore
-    :config
-    (info-lookmore-elisp-cl)
-    (info-lookmore-elisp-userlast)
-    (info-lookmore-elisp-gnus)
-    (info-lookmore-apropos-elisp)))
+  (use-package info-look
+    :after (info)
+    :defer t
+    :init
+    (autoload 'info-lookup-add-help "info-look")
+    (use-package info-lookmore
+      :after (info info-look)
+      :config
+      (info-lookmore-elisp-cl)
+      (info-lookmore-apropos-elisp)
+      (info-lookmore-elisp-userlast)
+      (with-eval-after-load 'gnus
+        (info-lookmore-elisp-gnus)))))
 
 (use-package isearch
   :disabled
@@ -912,6 +922,11 @@
   :hook (minibuffer-setup . my/minibuffer-setup-hook)
   :hook (minibuffer-exit  . my/minibuffer-exit-hook))
 
+(use-package move-text
+  :defer t
+  :bind (([(meta shift up)] . move-text-up)
+         ([(meta shift down)] . move-text-down)))
+
 (use-package paredit
   :diminish
   :defer t
@@ -1094,7 +1109,7 @@
       (add-to-list 'company-dabbrev-code-modes 'rust-mode)
       (add-hook 'racer-mode-hook #'company-mode))
     :hook (rust-mode . (racer-mode eldoc-mode)))
-  
+
   (use-package flycheck-rust
     :after (flycheck rust-mode)
     :config
@@ -1192,6 +1207,14 @@
   :commands which-key-mode
   :config
   (which-key-mode))
+
+(use-package whitespace
+  :defer t
+  :init
+  (setq whitespace-line-column 80) ;; limit line length
+  (setq whitespace-style '(face tabs empty trailing lines-tail))
+  :hook ((prog-mode text-mode) . whitespace-mode)
+  :hook (before-save . whitespace-cleanup))
 
 (use-package yaml-mode
   :mode "\\.ya?ml\\'")
