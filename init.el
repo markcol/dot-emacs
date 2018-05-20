@@ -326,49 +326,48 @@ couldn't figure things out (ex: syntax errors)."
 ;;; UI
 ;;;
 
-(eval-and-compile
-  (use-package afternoon-theme)
+(use-package afternoon-theme)
 
-  (use-package all-the-icons
-    :if (display-graphic-p)
-    :defer t)
+(use-package all-the-icons
+  :if (display-graphic-p)
+  :defer t)
 
-  (use-package spaceline
-    :demand t
-    :init
-    (setq powerline-default-separator 'arrow-fade)
-    :config
-    (require 'spaceline-config)
-    (spaceline-emacs-theme))
+(use-package spaceline
+  :demand t
+  :init
+  (setq powerline-default-separator 'arrow-fade)
+  :config
+  (require 'spaceline-config)
+  (spaceline-emacs-theme))
 
-  (setq default-frame-alist '((height . 58)
-			      (width  . 136)
-			      (font   . "Fira Code-10")))
+(setq default-frame-alist '((height . 50)
+			    (width  . 120)
+			    (font   . "Fira Code-10")))
 
-  (defun my/unload-themes ()
-    "Unload any loaded themes."
-    (mapc #'disable-theme custom-enabled-themes))
+(defun my/unload-themes ()
+  "Unload any loaded themes."
+  (mapc #'disable-theme custom-enabled-themes))
 
-  ;; When loading a different theme, first unload any loaded themes so
-  ;; that they do not leave stray customizations behind.
-  (advice-add 'load-theme :before #'my/unload-themes)
+;; When loading a different theme, first unload any loaded themes so
+;; that they do not leave stray customizations behind.
+(advice-add 'load-theme :before #'my/unload-themes)
 
-  (defun my/ui-settings (&rest frame)
-    "Setup the UI settings for a newly created `frame`."
-    (let ((f (or (car frame) (selected-frame))))
-      (setq-default cursor-type 'box)
-      (when (display-graphic-p)
-        (if (fboundp 'toggle-frame-maximized)
-            (add-hook 'emacs-startup-hook #'toggle-frame-maximized)
-          (set-frame-size f 120 50))
+(defun my/ui-settings (&rest frame)
+  "Setup the UI settings for a newly created `frame'."
+  (let ((f (or (car frame) (selected-frame))))
+    (setq-default cursor-type 'box)
+    (when (display-graphic-p)
+      (if (fboundp 'toggle-frame-maximized)
+          (add-hook 'emacs-startup-hook #'toggle-frame-maximized)
+        (set-frame-size f 120 50))
 
-        ;; Keep the frame size, but apply font to all frames.
-        (set-frame-font "Fira Code-10" nil t)
-        (load-theme 'afternoon-theme t)
-        (setq powerline-default-separator 'arrow-fade)
-        (spaceline-emacs-theme))))
+      ;; Keep the frame size, but apply font to all frames.
+      (set-frame-font "Fira Code-10" nil t)
+      (load-theme 'afternoon-theme t)
+      (setq powerline-default-separator 'arrow-fade)
+      (spaceline-emacs-theme))))
 
-  (add-hook 'after-make-frame-functions #'my/ui-settings t))
+(add-hook 'after-make-frame-functions #'my/ui-settings t)
 
 ;;;
 ;;; Packages
