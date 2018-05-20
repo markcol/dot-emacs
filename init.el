@@ -294,7 +294,6 @@ couldn't figure things out (ex: syntax errors)."
 ;;;
 
 (use-package async           :defer t)
-(use-package dash            :defer t)
 (use-package diminish        :demand t)
 (use-package el-mock         :defer t)
 (use-package elisp-refs      :defer t)
@@ -522,6 +521,11 @@ Used as hook function for `kill-emacs-hook', because
 (use-package csv-mode
   :mode "\\.csv\\'")
 
+(use-package dash
+  :defer t
+  :config
+  (dash-enable-font-lock))
+
 (use-package dash-at-point
   :if (eq system-type 'darwin)
   :ensure-system-package "dash"
@@ -593,6 +597,17 @@ Used as hook function for `kill-emacs-hook', because
   :defer t
   :init
   (autoload #'fullframe "fullframe"))
+
+(use-package gitignore-mode
+  :defer t)
+
+(use-package git-gutter-fringe
+  :diminish git-gutter-mode
+  :config
+  (global-git-gutter-mode +1))
+
+(use-package git-timemachine
+  :bind ("C-c x" . git-timemachine-toggle))
 
 (use-package google-this
   :bind-keymap ("C-c /" . google-this-mode-submap)
@@ -854,11 +869,6 @@ Used as hook function for `kill-emacs-hook', because
   :hook ((emacs-lisp-mode lisp-mode) . my/lisp-mode-hook)
   :hook ((emacs-lisp-mode lisp-mode) . check-parens))
 
-(use-package git-gutter-fringe
-  :diminish git-gutter-mode
-  :config
-  (global-git-gutter-mode +1))
-
 (use-package lsp-mode
   :config
   (use-package lsp-ui
@@ -885,7 +895,8 @@ Used as hook function for `kill-emacs-hook', because
     (turn-on-auto-fill))
   :hook (magit-log-edit-mode . my/magit-log-edit-mode-hook)
   :init
-  (setq magit-set-upstream-on-push t)
+  (setq magit-set-upstream-on-push      t
+        magit-commit-summary-max-length 70)
   :config
   ;; no longer need vc-git
   (delete 'Git vc-handled-backends)
