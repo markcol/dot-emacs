@@ -894,9 +894,11 @@ Used as hook function for `kill-emacs-hook', because
   :hook (magit-log-edit-mode . my/magit-log-edit-mode-hook)
   :init
   (use-package git-gutter-fringe
+    :after (magit)
     :diminish git-gutter-mode
     :init
-    (global-git-gutter-mode t))
+    (global-git-gutter-mode t)
+    :hook (magit-refresh-file-buffer . git-gutter:update-all-windows))
   :config
   ;; no longer need vc-git
   (delete 'Git vc-handled-backends))
