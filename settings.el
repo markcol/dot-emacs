@@ -4,7 +4,7 @@
  ;; Your init file should contain only one such instance.
  ;; If there is more than one, they won't work right.
  '(Info-fit-frame-flag nil)
- '(abbrev-file-name "~/.emacs.d/data/abbrev" t)
+ '(abbrev-file-name "~/.emacs.d/data/abbrev")
  '(avy-case-fold-search t)
  '(avy-timeout-seconds 0.3)
  '(bm-repository-file "~/.emacs.d/data/bm-repository")
@@ -32,9 +32,9 @@
  '(initial-scratch-message "")
  '(ispell-extra-args (quote ("--sug-mode=fast")))
  '(line-number-mode t)
+ '(load-prefer-newer t)
  '(lsp-enable-eldoc nil)
  '(lsp-inhbit-message t)
- '(load-prefer-newer t)
  '(magithub-dir "~/.emacs.d/data/magithub" t)
  '(mc/list-file "~/.emacs.d/data/mc-lists.el")
  '(pcache-directory "~/data/emacs/var")
@@ -63,6 +63,7 @@
  '(savehist-ignored-variables (quote (load-history flyspell-auto-correct-ring kill-ring)))
  '(scroll-bar-mode nil)
  '(semanticdb-default-save-directory "~/.emacs.d/data/semanticdb" t)
+ '(server-auth-dir "~\\.emacs.d\\data\\server\\")
  '(slime-repl-history-file "~/.emacs.d/data/slime-history.eld" t)
  '(tool-bar-mode nil)
  '(uniquify-buffer-name-style (quote post-forward-angle-brackets) nil (uniquify))
@@ -80,4 +81,4 @@
  ;; If you edit it by hand, you could mess it up, so be careful.
  ;; Your init file should contain only one such instance.
  ;; If there is more than one, they won't work right.
- '(font-lock-comment-face ((t (:foreground "grey50" :slant italic)))))
+ )

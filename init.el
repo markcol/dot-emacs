@@ -1078,12 +1078,12 @@ Used as hook function for `kill-emacs-hook', because
   :hook (python-mode . my/python-mode-hook))
 
 (use-package rainbow-delimiters
-  ;; rainbow-delimiters rainbow-delimiters is a "rainbow
-  ;; parentheses"-like mode which highlights delimiters such as
-  ;; parentheses, brackets or braces according to their depth. Each
-  ;; successive level is highlighted in a different color. This makes
-  ;; it easy to spot matching delimiters, orient yourself in the code,
-  ;; and tell which statements are at a given depth.
+  ;; rainbow-delimiters is a "rainbow parentheses"-like mode which
+  ;; highlights delimiters such as parentheses, brackets or braces
+  ;; according to their depth. Each successive level is highlighted in
+  ;; a different color. This makes it easy to spot matching
+  ;; delimiters, orient yourself in the code, and tell which
+  ;; statements are at a given depth.
   :hook (prog-mode . rainbow-delimiters-mode))
 
 (use-package recentf
