@@ -961,7 +961,7 @@ Used as hook function for `kill-emacs-hook', because
   :config
   (use-package org-journal
     :after org
-    :bind (("C-c t" . org-journal-new-entry)
+    :bind (("C-c T" . org-journal-new-entry)
            ("C-c y" . journal-file-yesterday))
     :init
     ;; TODO(markcol): could be set in settings.el
