@@ -123,6 +123,7 @@
       confirm-kill-emacs #'y-or-n-p
       css-indent-offset 2
       echo-keystrokes 0.3
+      global-auto-revert-mode t
       mouse-drag-copy-region t
       scroll-conservatively 100000
       scroll-margin 0
@@ -953,12 +954,14 @@ Used as hook function for `kill-emacs-hook', because
          ([(meta shift down)] . move-text-down)))
 
 (use-package org
-  :straight org-plus-contrib
   :straight (org-plus-contrib
              :type git :repo "https://code.orgmode.org/bzg/org-mode.git"
              :local-repo "org" :files (:defaults "contrib/lisp/*.el"))
   ;; TODO(markcol): configure org-crypt
   :config
+  (use-package org-plus-contrib
+    :straight f)
+
   (use-package org-journal
     :after org
     :bind (("C-c T" . org-journal-new-entry)
