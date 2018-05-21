@@ -527,7 +527,7 @@ Used as hook function for `kill-emacs-hook', because
 
 (use-package dash-at-point
   :if (eq system-type 'darwin)
-  :ensure-system-package "dash"
+  ;; :ensure-system-package "dash"
   :defer t)
 
 (use-package dired
@@ -952,6 +952,39 @@ Used as hook function for `kill-emacs-hook', because
   :bind (([(meta shift up)] . move-text-up)
          ([(meta shift down)] . move-text-down)))
 
+(use-package org
+  :straight org-plus-contrib
+  :straight (org-plus-contrib
+             :type git :repo "https://code.orgmode.org/bzg/org-mode.git"
+             :local-repo "org" :files (:defaults "contrib/lisp/*.el"))
+  ;; TODO(markcol): configure org-crypt
+  :config
+  (use-package org-journal
+    :after org
+    :bind (("C-c t" . org-journal-new-entry)
+           ("C-c y" . journal-file-yesterday))
+    :init
+    ;; TODO(markcol): could be set in settings.el
+    (setq org-journal-dir "~/Sync/shared/journal/2018/"
+          org-journal-file-format "%Y%m%d"
+          org-journal-date-format "%e %b %Y (%A)"
+          org-journal-time-format "")
+    :preface
+    (defun get-journal-file-yesterday ()
+      "Gets filename for yesterday's journal entry."
+      (let* ((yesterday (time-subtract (current-time) (days-to-time 1)))
+             (daily-name (format-time-string "%Y%m%d" yesterday)))
+        (expand-file-name (concat org-journal-dir daily-name))))
+
+    (defun journal-file-yesterday ()
+      "Creates and load a file based on yesterday's date."
+      (interactive)
+      (find-file (get-journal-file-yesterday))))
+
+  (setq org-todo-keywords
+        '("TODO" "|" "CANCELLED" "DONE"))
+  )
+
 (use-package paredit
   :diminish
   :defer t
@@ -965,7 +998,7 @@ Used as hook function for `kill-emacs-hook', because
     "Paredit mode customizations."
     (require 'eldoc)
     (eldoc-add-command 'paredit-backward-delete
-		       'paredit-close-round)
+                       'paredit-close-round)
     (paredit-mode))
   :config
   (use-package paredit-ext
@@ -1080,7 +1113,8 @@ Used as hook function for `kill-emacs-hook', because
   :bind ("C-c ]" . rectangle-mark-mode))
 
 (use-package rg
-  :ensure-system-package (rg . ripgrep))
+  ;; :ensure-system-package (rg . ripgrep)
+  )
 
 (use-package rust-mode
   :if (executable-find "rust")
@@ -1112,7 +1146,7 @@ Used as hook function for `kill-emacs-hook', because
   (use-package racer
     :disabled
     :unless (featurep 'lsp-rust)
-    :ensure-system-package (racer . "cargo install racer")
+    ;; :ensure-system-package (racer . "cargo install racer")
     :init
     ;; Tell racer to use the rustup managed rust-src
     (setq racer-cmd              (executable-find "racer")
@@ -1272,7 +1306,7 @@ Used as hook function for `kill-emacs-hook', because
 
 (use-package zeal-at-point
   :if (memq system-type '(gnu/linux))
-  :ensure-system-package "zeal"
+  ;; :ensure-system-package "zeal"
   :defer t)
 
 ;;;
