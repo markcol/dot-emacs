@@ -8,7 +8,36 @@
 ;;; Code:
 
 (defconst emacs-start-time (current-time))
+
+;; List of variables set temporarily during init to reduce start-up time.
+(defvar my/default-values nil)
+
+(defmacro temp-value (var val)
+  "Set `var' to the the value `val', and add variable to list of variables to
+ restore to default values after initialization is complete (`my/default-values')."
+  `(progn
+     (add-to-list 'my/default-values ',var)
+     (setq ,var ,val)))
+
+(defun my/restore-default-values ()
+  "Restore default values to all variables listed in `my/default-values'.
+ These variables were changed at the beginning of init.el to reduce startup time."
+  (dolist (var my/default-values)
+    (set var (default-value var)))
+  (setq my/default-values nil))
+
+;; (add-hook 'after-init-hook #'my/restore-default-values)
+
+;; (temp-value gc-cons-threshold (* 512 1024 1024))
+;; (temp-value gc-cons-percentage 0.6)
+;; (temp-value message-log-max (* 16 1024))
+;; (temp-value file-name-handler-alist nil)
+
+;; (my/restore-default-values)
+
 (defvar my/file-name-handler-alist-old file-name-handler-alist)
+
+;; (default-value 'file-name-handler-alist)
 
 (setq package-enable-at-startup nil
       file-name-handler-alist nil
@@ -313,7 +342,6 @@ couldn't figure things out (ex: syntax errors)."
 (use-package popup-pos-tip   :defer t)
 (use-package pos-tip         :defer t)
 (use-package request         :defer t)
-(use-package rich-minority   :defer t)
 (use-package s               :defer t)
 (use-package tablist         :defer t)
 (use-package uuidgen         :defer t)
@@ -817,7 +845,6 @@ Used as hook function for `kill-emacs-hook', because
   (defun my/lisp-mode-hook ()
     "My Lisp mode customizations"
     (abbrev-mode +1)
-    (paredit-mode +1)
     (add-to-list 'imenu-generic-expression
                  '("Used Packages"
                    "\\(^\\s-*(use-package +\\)\\(\\_<.+\\_>\\)" 2))
@@ -959,15 +986,12 @@ Used as hook function for `kill-emacs-hook', because
              :local-repo "org" :files (:defaults "contrib/lisp/*.el"))
   ;; TODO(markcol): configure org-crypt
   :config
-  (use-package org-plus-contrib
-    :straight f)
-
   (use-package org-journal
     :after org
     :bind (("C-c T" . org-journal-new-entry)
            ("C-c y" . journal-file-yesterday))
     :init
-    ;; TODO(markcol): could be set in settings.el
+    ;; TODO(markcol): could be set in settings.el?
     (setq org-journal-dir "~/Sync/shared/journal/2018/"
           org-journal-file-format "%Y%m%d"
           org-journal-date-format "%e %b %Y (%A)"
@@ -989,8 +1013,8 @@ Used as hook function for `kill-emacs-hook', because
   )
 
 (use-package paredit
+  :disabled
   :diminish
-  :defer t
   :commands (paredit-mode paredit-backward-delete paredit-close-round paredit-newline)
   :bind (:map lisp-mode-map
               ("<return>" . paredit-newline))
@@ -1007,7 +1031,49 @@ Used as hook function for `kill-emacs-hook', because
   (use-package paredit-ext
     :straight f
     :load-path "lisp")
-  :hook ((lisp-mode emacs-lisp-mode) . my/paredit-mode-hook))
+  :hook ((lisp-mode emacs-lisp-mode) . my/paredit-mode-hook)  )
+
+(use-package smartparens
+  :bind (:map smartparens-mode-map
+              ;; Movement and navigation
+              ("C-M-f"       . sp-forward-sexp)
+              ("C-M-b"       . sp-backward-sexp)
+              ("C-M-u"       . sp-backward-up-sexp)
+              ("C-M-d"       . sp-down-sexp)
+              ("C-M-p"       . sp-backward-down-sexp)
+              ("C-M-n"       . sp-up-sexp)
+              ;; Deleting and killing
+              ("C-M-k"       . sp-kill-sexp)
+              ("C-M-w"       . sp-copy-sexp)
+              ;; Depth changing
+              ("M-s"         . sp-splice-sexp)
+              ("M-<up>"      . sp-splice-sexp-killing-backward)
+              ("M-<down>"    . sp-splice-sexp-killing-forward)
+              ("M-r"         . sp-splice-sexp-killing-around)
+              ("M-?"         . sp-convolute-sexp)
+              ;; Barfage & Slurpage
+              ("C-)"         . sp-forward-slurp-sexp)
+              ("C-<right>"   . sp-forward-barf-sexp)
+              ("C-}"         . sp-backward-up-sexp)
+              ("C-<left>"    . sp-forward-barf-sexp)
+              ("C-("         . sp-backward-slurp-sexp)
+              ("C-M-<left>"  . sp-backward-slurp-sexp)
+              ("C-{"         . sp-backward-barf-sexp)
+              ("C-M-<right>" . sp-backward-barf-sexp)
+              ("M-S"         . sp-split-sexp)
+              ("M-J"         . sp-join-sexp)
+              ("C-M-t"       . sp-transpose-sexp))
+  :bind (:map smartparens-strict-mode-map
+              ("M-q"         . sp-indent-defun)
+              ("C-j"         . sp-newline))
+  :config
+  (setq sp-autoskip-closing-pair 'always
+        ;; Don't kill the entire symbol on C-k
+        sp-hybrid-kill-entire-symbol nil)
+
+  (smartparens-global-mode)
+  (show-smartparens-global-mode)
+  :hook ((lisp-mode emacs-lisp-mode) . smartparens-strict-mode))
 
 (use-package projectile
   :after ivy
