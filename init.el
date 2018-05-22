@@ -8,49 +8,22 @@
 ;;; Code:
 
 (defconst emacs-start-time (current-time))
-
-;; List of variables set temporarily during init to reduce start-up time.
-(defvar my/default-values nil)
-
-(defmacro temp-value (var val)
-  "Set `var' to the the value `val', and add variable to list of variables to
- restore to default values after initialization is complete (`my/default-values')."
-  `(progn
-     (add-to-list 'my/default-values ',var)
-     (setq ,var ,val)))
-
-(defun my/restore-default-values ()
-  "Restore default values to all variables listed in `my/default-values'.
- These variables were changed at the beginning of init.el to reduce startup time."
-  (dolist (var my/default-values)
-    (set var (default-value var)))
-  (setq my/default-values nil))
-
-;; (add-hook 'after-init-hook #'my/restore-default-values)
-
-;; (temp-value gc-cons-threshold (* 512 1024 1024))
-;; (temp-value gc-cons-percentage 0.6)
-;; (temp-value message-log-max (* 16 1024))
-;; (temp-value file-name-handler-alist nil)
-
-;; (my/restore-default-values)
+(setq package-enable-at-startup nil)
 
 (defvar my/file-name-handler-alist-old file-name-handler-alist)
-
-;; (default-value 'file-name-handler-alist)
-
-(setq package-enable-at-startup nil
-      file-name-handler-alist nil
+(setq file-name-handler-alist nil
       message-log-max 16384
-      gc-cons-threshold 402653184
+      gc-cons-threshold (* 512 1024 1024)
       gc-cons-percentage 0.6)
 
 (defun my/restore-default-values ()
   "Restore the default values of performance-critical variables."
   (setq file-name-handler-alist my/file-name-handler-alist-old
+        message-log-max 1000
         gc-cons-threshold 800000
         gc-cons-percentage 0.1)
-  (garbage-collect))
+  (garbage-collect)
+  (remove-hook 'after-init-hook #'my/restore-default-values))
 
 (add-hook 'after-init-hook #'my/restore-default-values)
 
@@ -1067,12 +1040,26 @@ Used as hook function for `kill-emacs-hook', because
               ("M-q"         . sp-indent-defun)
               ("C-j"         . sp-newline))
   :config
-  (setq sp-autoskip-closing-pair 'always
-        ;; Don't kill the entire symbol on C-k
+  (require 'smartparens-config)
+
+  (setq smartparens-strict-mode t
+        sp-autoskip-closing-pair 'always
+        sp-base-key-bindings 'paredit
         sp-hybrid-kill-entire-symbol nil)
 
-  (smartparens-global-mode)
-  (show-smartparens-global-mode)
+  (sp-local-pair 'emacs-lisp-mode "'" nil :when '(sp-in-string-p))
+  (sp-local-pair 'emacs-lisp-mode "`" nil :when '(sp-in-string-p))
+  (sp-with-modes '(html-mode sgml-mode web-mode)
+    (sp-local-pair "<" ">"))
+  (sp-with-modes sp--lisp-modes
+    (sp-local-pair "(" nil :bind "C-("))
+  (sp-with-modes '(markdown-mode gfm-mode rst-mode)
+    (sp-local-pair "*" "*" :bind "C-*")
+    (sp-local-tag "2" "**" "**")
+    (sp-local-tag "s" "```scheme" "```")
+    (sp-local-tag "<"  "<_>" "</_>" :transform 'sp-match-sgml-tags))
+  (smartparens-global-mode +1)
+  (show-smartparens-global-mode +1)
   :hook ((lisp-mode emacs-lisp-mode) . smartparens-strict-mode))
 
 (use-package projectile
