@@ -80,6 +80,32 @@
 ;; Bootstrap `use-package` integration for straight.el.
 (straight-use-package 'use-package)
 (use-package bind-key :commands bind-key)
+
+(use-package system-packages
+  :config
+  (when (eq system-type 'windows-nt)
+    (add-to-list 'system-packages-supported-package-managers
+                 '(choco .
+                         ((default-sudo . nil)
+                          (install . "runas /user:administrator@mhcolbur-lap choco install --noprogress")
+                          (search . "choco search")
+                          (uninstall . "choco uninstall")
+                          (update . "choco upgrade")
+                          (clean-cache . "choco optimize")
+                          (log . "type C:/ProgramData/chocolatey/logs/chocolatey.log")
+                          (get-info . "choco info")
+                          (get-info-remote . "choco info")
+                          (list-files-provided-by . "choco info")
+                          (verify-all-packages . nil)
+                          (verify-all-dependencies . nil)
+                          (remove-orphaned . nil)
+                          (list-installed-packages . "choco list -lai")
+                          (list-installed-packages-all . "choco list -ai")
+                          (list-dependencies-of . nil)
+                          (noconfirm . "-yf"))))
+    (setq system-packages-use-sudo nil)
+    (setq system-packages-package-manager 'choco)))
+
 (use-package use-package-ensure-system-package)
 (use-package use-package-chords
   :disabled
@@ -328,6 +354,7 @@ couldn't figure things out (ex: syntax errors)."
 ;;; UI
 ;;;
 
+
 (use-package afternoon-theme)
 
 (use-package all-the-icons
@@ -362,9 +389,27 @@ couldn't figure things out (ex: syntax errors)."
       (if (fboundp 'toggle-frame-maximized)
           (add-hook 'emacs-startup-hook #'toggle-frame-maximized)
         (set-frame-size f 120 50))
+      ;; Apply font based on what's available on system in priority
+      ;; order. Keep the current frame size, but apply font to all
+      ;; frames.
+      (cond
+       ((find-font (font-spec :name "Fira Code"))
+        (set-frame-font "Fira Code-10" nil t))
+       ((find-font (font-spec :name "Source Code Variable"))
+        (set-frame-font "Source Code Variable-10" nil t))
+       ((find-font (font-spec :name "Source Code Pro"))
+        (set-frame-font "Source Code Pro-10" nil t))
+       ((find-font (font-spec :name "Fantasque Sans Mono"))
+        (set-frame-font "Fantasque Sans Mono-12" nil t))
+       ((find-font (font-spec :name "Anonymous Pro"))
+        (set-frame-font "Anonymous Pro-11" nil t))
+       ((find-font (font-spec :name "Hack"))
+        (set-frame-font "Hack-10" nil t))
+       ((find-font (font-spec :name "3270-Medium"))
+        (set-frame-font "3270-Medium-12" nil t))
+       ((find-font (font-spec :name "courier"))
+        (set-frame-font "courier-10" nil t)))
 
-      ;; Keep the frame size, but apply font to all frames.
-      (set-frame-font "Fira Code-10" nil t)
       (load-theme 'afternoon-theme t)
       (setq powerline-default-separator 'arrow-fade)
       (spaceline-emacs-theme))))
@@ -374,6 +419,8 @@ couldn't figure things out (ex: syntax errors)."
 ;;;
 ;;; Packages
 ;;;
+
+;;;[START_USE_PACKAGE]
 
 (use-package abbrev
   :straight f
@@ -430,6 +477,7 @@ couldn't figure things out (ex: syntax errors)."
   :hook ((text-mode prog-mode) . turn-on-auto-fill))
 
 (use-package auto-yasnippet
+  :disabled
   :after (yasnippet)
   :bind (("C-c y a" . aya-create)
          ("C-c y e" . aya-expand)
@@ -537,10 +585,12 @@ Used as hook function for `kill-emacs-hook', because
   :config
   (require 'dired-x)
   (use-package dired-details
+    :after (dired)
     :init
     (setq-default dired-details-hidden-string "--- ")
     :config
     (dired-details-install))
+
   (when (memq system-type '(gnu/linux darwin))
     ;; Show human-readable file sizes and sort numbers properly
     (setq-default dired-listing-switches "-alhv")))
@@ -557,9 +607,13 @@ Used as hook function for `kill-emacs-hook', because
   :bind ("C-c e v" . edit-variable))
 
 (use-package editorconfig
+  :disabled
   :if (file-exists-p (expand-file-name ".editorconfig" (getenv "HOME")))
+  ;; :require-system-package "EditorConfig"
   :defer t
   :config
+  ;; Always the built-in core library instead of any EditorConfig executable to get properties.
+  (set-variable 'editorconfig-get-properties-function #'editor-config-core-get-properties-hash)
   (editorconfig-mode 1))
 
 (use-package eldoc
@@ -603,9 +657,19 @@ Used as hook function for `kill-emacs-hook', because
   :defer t)
 
 (use-package git-gutter-fringe
+  :defer t
   :diminish git-gutter-mode
+  :preface
+  (defun my/git-gutter-refresh-all ()
+    "Refresh all git-gutter windows."
+    ;; Don't refresh until after fully initialized
+    (when after-init-time
+      (git-gutter:update-all-windows)))
   :config
-  (global-git-gutter-mode +1))
+  (global-git-gutter-mode +1)
+  (with-eval-after-load 'magit
+    ;; Refresh git-gutter buffers after Magit status changes
+    (add-hook 'magit-post-refresh-hook #'my/git-gutter-refresh-all)))
 
 (use-package git-timemachine
   :bind ("C-c x" . git-timemachine-toggle))
@@ -641,8 +705,9 @@ Used as hook function for `kill-emacs-hook', because
 
 (use-package imenu
   :defer t
-  :init
+  :config
   (use-package imenu-anywhere
+    :after (imenu)
     :bind (("C-c i" . imenu-anywhere)
            ("s-i"   . imenu-anywhere)))
   :hook (emacs-lisp . imenu-add-menubar-index))
@@ -670,15 +735,15 @@ Used as hook function for `kill-emacs-hook', because
     :after (info)
     :defer t
     :config
-    (autoload 'info-lookup-add-help "info-look"))
-  (use-package info-lookmore
-    :after (info info-look)
-    :config
-    (info-lookmore-elisp-cl)
-    (info-lookmore-apropos-elisp)
-    (info-lookmore-elisp-userlast)
-    (with-eval-after-load 'gnus
-      (info-lookmore-elisp-gnus))))
+    (autoload 'info-lookup-add-help "info-look")
+    (use-package info-lookmore
+      :after (info info-look)
+      :config
+      (info-lookmore-elisp-cl)
+      (info-lookmore-apropos-elisp)
+      (info-lookmore-elisp-userlast)
+      (with-eval-after-load 'gnus
+        (info-lookmore-elisp-gnus)))))
 
 (use-package isearch
   :disabled
@@ -775,21 +840,23 @@ Used as hook function for `kill-emacs-hook', because
 
   :init
   (setq ivy-count-format             ""
-	ivy-dynamic-exhibit-delay-ms 200
-	ivy-height                   10
-	ivy-initial-inputs-alist     nil
-	ivy-magic-tilde              nil
-	ivy-re-builders-alist        '((t . ivy--regex-ignore-order))
-	ivy-use-selectable-promnpt   t
-	ivy-use-virtual-buffers      t
-	ivy-wrap                     t)
+        ivy-dynamic-exhibit-delay-ms 200
+        ivy-height                   10
+        ivy-initial-inputs-alist     nil
+        ivy-magic-tilde              nil
+        ivy-re-builders-alist        '((t . ivy--regex-ignore-order))
+        ivy-use-selectable-promnpt   t
+        ivy-use-virtual-buffers      t
+        ivy-wrap                     t)
   :config
   (use-package ivy-pass
     :demand t
+    :after (ivy)
     :commands ivy-pass)
 
   (use-package ivy-rich
     :demand t
+    :after (ivy)
     :config
     (ivy-set-display-transformer 'ivy-switch-buffer
                                  'ivy-rich-switch-buffer-transformer)
@@ -809,19 +876,28 @@ Used as hook function for `kill-emacs-hook', because
 (use-package json-mode
   :mode "\\.json\\'"
   :config
-  (use-package json-reformat)
-  (use-package json-snatcher))
+  (use-package json-reformat
+    :after (json-mode))
+
+  (use-package json-snatcher
+    :after (json-mode)))
 
 (use-package lisp-mode
   :straight f
   :preface
-  (defun my/lisp-mode-hook ()
+  (defun my/lisp-mode-save-config ()
+    "Check parenthesis in Lisp-like buffers."
+    (when (memq major-mode '(lisp-mode emacs-lisp-mode))
+      (check-parens)))
+  :hook (after-save . my/lisp-mode-save-config)
+  :preface
+  (defun my/lisp-mode-config ()
     "My Lisp mode customizations"
     (abbrev-mode +1)
     (add-to-list 'imenu-generic-expression
                  '("Used Packages"
-                   "\\(^\\s-*(use-package +\\)\\(\\_<.+\\_>\\)" 2))
-    )
+                   "\\(^\\s-*(use-package +\\)\\(\\_<.+\\_>\\)" 2)))
+  :hook ((emacs-lisp-mode lisp-mode) . my/lisp-mode-config)
   :config
   (dolist (mode '(ielm-mode
                   inferior-emacs-lisp-mode
@@ -834,40 +910,42 @@ Used as hook function for `kill-emacs-hook', because
      '(("(\\(ert-deftest\\)\\>[         '(]*\\(setf[    ]+\\sw+\\|\\sw+\\)?"
         (1 font-lock-keyword-face)
         (2 font-lock-function-name-face
-           nil t)))))
+           nil t))))))
 
-  (use-package elint
-    :commands (elint-initialize elint-current-buffer)
-    :bind ("C-c e E" . my/elint-current-buffer)
-    :preface
-    (defun my/elint-current-buffer ()
-      (interactive)
-      (elint-initialize)
-      (elint-current-buffer))
-    :config
-    (add-to-list 'elint-standard-variables 'current-prefix-arg)
-    (add-to-list 'elint-standard-variables 'command-line-args-left)
-    (add-to-list 'elint-standard-variables 'buffer-file-coding-system)
-    (add-to-list 'elint-standard-variables 'emacs-major-version)
-    (add-to-list 'elint-standard-variables 'window-system))
+(use-package elint
+  :after (emacs-lisp-mode)
+  :commands (elint-initialize elint-current-buffer)
+  :bind ("C-c e E" . my/elint-current-buffer)
+  :preface
+  (defun my/elint-current-buffer ()
+    (interactive)
+    (elint-initialize)
+    (elint-current-buffer))
+  :config
+  (add-to-list 'elint-standard-variables 'current-prefix-arg)
+  (add-to-list 'elint-standard-variables 'command-line-args-left)
+  (add-to-list 'elint-standard-variables 'buffer-file-coding-system)
+  (add-to-list 'elint-standard-variables 'emacs-major-version)
+  (add-to-list 'elint-standard-variables 'window-system))
 
-  (use-package elisp-depend
-    :commands elisp-depend-print-dependencies)
+(use-package elisp-depend
+  :after (emacs-lisp-mode)
+  :commands elisp-depend-print-dependencies)
 
-  (use-package elisp-docstring-mode
-    :commands elisp-docstring-mode)
+(use-package elisp-docstring-mode
+  :after (emacs-lisp-mode)
+  :commands elisp-docstring-mode)
 
-  (use-package elisp-slime-nav
-    :diminish
-    :commands (elisp-slime-nav-mode
-               elisp-slime-nav-find-elisp-thing-at-point))
+(use-package elisp-slime-nav
+  :after (emacs-lisp-mode)
+  :diminish
+  :commands (elisp-slime-nav-mode
+             elisp-slime-nav-find-elisp-thing-at-point))
 
-  (use-package elmacro
-    :bind (("C-c m e" . elmacro-mode)
-           ("C-x C-)" . elmacro-show-last-macro)))
-
-  :hook ((emacs-lisp-mode lisp-mode) . my/lisp-mode-hook)
-  :hook ((emacs-lisp-mode lisp-mode) . check-parens))
+(use-package elmacro
+  :after (emacs-lisp-mode)
+  :bind (("C-c m e" . elmacro-mode)
+         ("C-x C-)" . elmacro-show-last-macro)))
 
 (use-package lsp-mode
   :config
@@ -881,32 +959,28 @@ Used as hook function for `kill-emacs-hook', because
     :hook (lsp-mode . lsp-ui-mode)))
 
 (use-package macrostep
+  :after (emacs-lisp-mode)
   :bind (:map emacs-lisp-mode-map
               ("C-c e m" . macrostep-expand)))
 
 (use-package magit
   :bind (("C-c g" . magit-status))
   :preface
-  (defun my/magit-log-edit-mode-hook ()
+  (defun my/magit-log-edit-config ()
     "Configuration for editing Git log messages."
     (setq fill-column 72)
     (when (featurep 'flyspell)
       (flyspell-mode t))
     (turn-on-auto-fill))
-  :hook (magit-log-edit-mode . my/magit-log-edit-mode-hook)
-  :init
+  :hook (magit-log-edit-mode . my/magit-log-edit-config)
+  :config
   (setq magit-set-upstream-on-push      t
         magit-commit-summary-max-length 70)
-  :config
   ;; no longer need vc-git
   (delete 'Git vc-handled-backends)
 
   ;; Check excessively long summary lines in commit messages
-  (add-to-list 'git-commit-style-convention-checks 'overlong-summary-line)
-
-  ;; Refresh git-gutter buffers after Magit status changes
-  (with-eval-after-load 'git-gutter
-    (add-hook 'magit-post-refresh-hook #'git-gutter:update-all-windows)))
+  (add-to-list 'git-commit-style-convention-checks 'overlong-summary-line))
 
 (use-package markdown-mode
   :mode (("\\`README\\.md\\'" . gfm-mode)
@@ -918,11 +992,13 @@ Used as hook function for `kill-emacs-hook', because
                                (t                                 nil)))
   :config
   (use-package markdown-preview-mode
+    :after markdown-mode
     :if (executable-find "multimarkdown")
     :init
     (setq markdown-preview-stylesheets
           (list (concat "https://github.com/dmarcotte/github-markdown-preview/"
-		        "blob/master/data/css/github.css"))))
+                        "blob/master/data/css/github.css"))))
+
   (with-eval-after-load 'imenu
     (require 'imenu)
     (setq imenu-auto-rescan t)
@@ -933,18 +1009,20 @@ Used as hook function for `kill-emacs-hook', because
   :hook (markdown-mode . visual-line-mode))
 
 (use-package minibuffer
+  :disabled
   :straight f
   :preface
   (defun my/minibuffer-setup-hook ()
     "Setup minibuffer for use."
     ;; Disable garbage collection while in minibuffer to avoid stalls.
+
+    ;; TODO(markcol): setting `gc-cons-threshold' doesn't work in Emacs 27?!
     (setq gc-cons-threshold most-positive-fixnum))
 
   (defun my/minibuffer-exit-hook ()
     "Restore minibuffer setup changes."
     ;; Restore garbage collection afer exiting the minibuffer.
     (setq gc-cons-threshold 800000))
-
   :hook (minibuffer-setup . my/minibuffer-setup-hook)
   :hook (minibuffer-exit  . my/minibuffer-exit-hook))
 
@@ -959,10 +1037,25 @@ Used as hook function for `kill-emacs-hook', because
              :local-repo "org" :files (:defaults "contrib/lisp/*.el"))
   ;; TODO(markcol): configure org-crypt
   :config
+  ;; org-ql and org-agenda-ng are dependencies for org-sidebar, but
+  ;; not on MELPA.
+  (use-package org-ql
+    :straight (org-ql :type git :host github :repo "alphapapa/org-agenda-ng"))
+
+  (use-package org-agenda-ng
+    :straight (org-agenda-ng :type git :host github :repo "alphapapa/org-agenda-ng"))
+
+  (use-package org-sidebar
+    :after (org org-ql org-agenda-ng)
+    :straight (org-sidebar :type git :host github :repo "alphapapa/org-sidebar")
+    :after org
+    :commands (org-sidebar)
+    :bind ("C-c o s" . org-sidebar))
+
   (use-package org-journal
     :after org
-    :bind (("C-c T" . org-journal-new-entry)
-           ("C-c y" . journal-file-yesterday))
+    :bind (("C-c o t" . org-journal-new-entry)
+           ("C-c o y" . journal-file-yesterday))
     :init
     ;; TODO(markcol): could be set in settings.el?
     (setq org-journal-dir "~/Sync/shared/journal/2018/"
@@ -982,11 +1075,9 @@ Used as hook function for `kill-emacs-hook', because
       (find-file (get-journal-file-yesterday))))
 
   (setq org-todo-keywords
-        '("TODO" "|" "CANCELLED" "DONE"))
-  )
+        '("TODO" "|" "CANCELLED" "DONE")))
 
 (use-package paredit
-  :disabled
   :diminish
   :commands (paredit-mode paredit-backward-delete paredit-close-round paredit-newline)
   :bind (:map lisp-mode-map
@@ -1003,10 +1094,13 @@ Used as hook function for `kill-emacs-hook', because
   :config
   (use-package paredit-ext
     :straight f
-    :load-path "lisp")
-  :hook ((lisp-mode emacs-lisp-mode) . my/paredit-mode-hook)  )
+    :load-path "lisp"
+    :after (paredit))
+
+  :hook ((lisp-mode emacs-lisp-mode) . my/paredit-mode-hook))
 
 (use-package smartparens
+  :disabled
   :bind (:map smartparens-mode-map
               ;; Movement and navigation
               ("C-M-f"       . sp-forward-sexp)
@@ -1050,14 +1144,14 @@ Used as hook function for `kill-emacs-hook', because
   (sp-local-pair 'emacs-lisp-mode "'" nil :when '(sp-in-string-p))
   (sp-local-pair 'emacs-lisp-mode "`" nil :when '(sp-in-string-p))
   (sp-with-modes '(html-mode sgml-mode web-mode)
-    (sp-local-pair "<" ">"))
+                 (sp-local-pair "<" ">"))
   (sp-with-modes sp--lisp-modes
-    (sp-local-pair "(" nil :bind "C-("))
+                 (sp-local-pair "(" nil :bind "C-("))
   (sp-with-modes '(markdown-mode gfm-mode rst-mode)
-    (sp-local-pair "*" "*" :bind "C-*")
-    (sp-local-tag "2" "**" "**")
-    (sp-local-tag "s" "```scheme" "```")
-    (sp-local-tag "<"  "<_>" "</_>" :transform 'sp-match-sgml-tags))
+                 (sp-local-pair "*" "*" :bind "C-*")
+                 (sp-local-tag "2" "**" "**")
+                 (sp-local-tag "s" "```scheme" "```")
+                 (sp-local-tag "<"  "<_>" "</_>" :transform 'sp-match-sgml-tags))
   (smartparens-global-mode +1)
   (show-smartparens-global-mode +1)
   :hook ((lisp-mode emacs-lisp-mode) . smartparens-strict-mode))
@@ -1169,7 +1263,9 @@ Used as hook function for `kill-emacs-hook', because
   :bind ("C-c ]" . rectangle-mark-mode))
 
 (use-package rg
-  ;; :ensure-system-package (rg . ripgrep)
+  :defer t
+  :if (executable-find "rg")
+  ;; :ensure-system-package rg
   )
 
 (use-package rust-mode
@@ -1190,10 +1286,11 @@ Used as hook function for `kill-emacs-hook', because
 
   :config
   (use-package cargo
+    :after (rust)
     :hook (rust-mode . cargo-minor-mode))
 
   (use-package lsp-rust
-    :after (lsp-mode lsp-ui)
+    :after (lsp-mode lsp-ui rust)
     :if (executable-find "rustup")
     :init
     (setq lsp-rust-rls-command '("rustup" "run" "nightly" "rls"))
@@ -1201,6 +1298,7 @@ Used as hook function for `kill-emacs-hook', because
 
   (use-package racer
     :disabled
+    :after (rust)
     :unless (featurep 'lsp-rust)
     ;; :ensure-system-package (racer . "cargo install racer")
     :init
@@ -1210,9 +1308,9 @@ Used as hook function for `kill-emacs-hook', because
                                                     (lambda (line) (s-match "default" line))
                                                     (s-lines (shell-command-to-string "rustup toolchain list")))))
           rust-src-path          (concat (getenv "HOME") "/.multirust/toolchains/"
-					 rust-default-toolchain "/lib/rustlib/src/rust/src")
+                                         rust-default-toolchain "/lib/rustlib/src/rust/src")
           rust-bin-path          (concat (getenv "HOME") "/.multirust/toolchains/"
-					 rust-default-toolchain "/bin")
+                                         rust-default-toolchain "/bin")
           racer-rust-src-path    rust-src-path)
     (setenv "RUST_SRC_PATH" rust-src-path)
     (setenv "RUSTC" rust-bin-path)
@@ -1223,7 +1321,7 @@ Used as hook function for `kill-emacs-hook', because
     :hook (rust-mode . (racer-mode eldoc-mode)))
 
   (use-package flycheck-rust
-    :after (flycheck)
+    :after (flycheck rust)
     :config
     (flycheck-rust-setup))
 
@@ -1362,8 +1460,10 @@ Used as hook function for `kill-emacs-hook', because
 
 (use-package zeal-at-point
   :if (memq system-type '(gnu/linux))
-  ;; :ensure-system-package "zeal"
+  ;; :ensure-system-package zeal
   :defer t)
+
+;;;[END_USE_PACKAGE]
 
 ;;;
 ;;; Finalization
