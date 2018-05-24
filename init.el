@@ -82,12 +82,33 @@
 (use-package bind-key :commands bind-key)
 
 (use-package system-packages
+  :preface
+  (defun system-packages--run-command (action &optional pack args)
+    "Run a command asynchronously using the system's package manager.
+See `system-packages-get-command' for how to use ACTION, PACK,
+and ARGS."
+    (let ((command (if (and (eq system-packages-package-manager 'choco)
+                            (memq action '(install uninstall update clean-cache)))
+                       (format "runas /user:administrator@%s \"%s\""
+                               system-name
+                               (system-packages-get-command action pack args))
+                     (system-packages-get-command action pack args)))
+          (default-directory (if system-packages-use-sudo
+                                 "/sudo::"
+                               default-directory)))
+      (if (eq system-type 'windows-nt)
+          (progn
+            (let ((shell-prompt-pattern "Enter the password for administrator@MHCOLBUR-LAP:")
+                  (comint-use-prompt-regexp "Enter the password for administrator@MHCOLBUR-LAP:"))
+              (shell-command command "*system-packages*")
+              (send-invisible "Enter administrator password: ")))
+        (async-shell-command command "*system-packages*"))))
   :config
   (when (eq system-type 'windows-nt)
     (add-to-list 'system-packages-supported-package-managers
                  '(choco .
                          ((default-sudo . nil)
-                          (install . "runas /user:administrator@mhcolbur-lap choco install --noprogress")
+                          (install . "choco install --noprogress")
                           (search . "choco search")
                           (uninstall . "choco uninstall")
                           (update . "choco upgrade")
@@ -102,13 +123,16 @@
                           (list-installed-packages . "choco list -lai")
                           (list-installed-packages-all . "choco list -ai")
                           (list-dependencies-of . nil)
-                          (noconfirm . "-yf"))))
+                          (noconfirm . "-y"))))
     (setq system-packages-use-sudo nil)
     (setq system-packages-package-manager 'choco)))
 
-(use-package use-package-ensure-system-package)
+(use-package use-package-ensure-system-package
+  :after (use-package system-packages) )
+
 (use-package use-package-chords
   :disabled
+  :after (use-package)
   :config
   ;; Define your chord bindings in the same manner as :bind using a cons or a list of conses:
   ;;
