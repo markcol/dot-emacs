@@ -784,23 +784,24 @@ initialization, it can loop until OS handles are exhausted."
         (info-lookmore-elisp-gnus)))))
 
 (use-package isearch
-  :disabled
   :straight f
-  :bind (("C-M-r" . isearch-backward-other-window)
-         ("C-M-s" . isearch-forward-other-window))
+  :bind (("C-M-r"    . my/isearch-backward-other-window)
+         ("C-M-s"    . my/isearch-forward-other-window))
   :bind (:map isearch-mode-map
               ("C-c" . isearch-toggle-case-fold)
               ("C-t" . isearch-toggle-regexp)
               ("C-^" . isearch-edit-string)
               ("C-i" . isearch-complete))
   :preface
-  (defun isearch-backward-other-window ()
+  (defun my/isearch-backward-other-window ()
+    "Incrementally search backward using a new window."
     (interactive)
     (split-window-vertically)
     (other-window 1)
     (call-interactively 'isearch-backward))
 
-  (defun isearch-forward-other-window ()
+  (defun my/isearch-forward-other-window ()
+    "Incrementally search forward using a new window."
     (interactive)
     (split-window-vertically)
     (other-window 1)
