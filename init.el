@@ -694,15 +694,19 @@ Used as hook function for `kill-emacs-hook', because
   :diminish git-gutter-mode
   :preface
   (defun my/git-gutter-refresh-all ()
-    "Refresh all git-gutter windows."
-    ;; Don't refresh until after fully initialized
+    "Refresh all git-gutter windows unless initializing.
+If `git-gutter:update-all-windows' is called during
+initialization, it can loop until OS handles are exhausted."
+    ;; `after-init-time' is set to a non-nil value only after Emacs
+    ;; initialization is completed.
     (when after-init-time
       (git-gutter:update-all-windows)))
   :config
   (global-git-gutter-mode +1)
   (with-eval-after-load 'magit
     ;; Refresh git-gutter buffers after Magit status changes
-    (add-hook 'magit-post-refresh-hook #'my/git-gutter-refresh-all)))
+    (add-hook 'magit-post-refresh-hook #'my/git-gutter-refresh-all))
+  :hook ((prog-mode) . git-gutter-mode))
 
 (use-package git-timemachine
   :bind ("C-c x" . git-timemachine-toggle))
@@ -759,9 +763,11 @@ Used as hook function for `kill-emacs-hook', because
   :preface
   (defun my/Info-mode-config ()
     "Info-mode configuration settings."
-    (setq bufer-face-mode-face '(:family "Bookerly"))
-    (buffer-face-mode)
-    (text-scale-adjust 1))
+    ;; Use Bookerly font, if available
+    (when (find-font (font-spec :name "Bookerly"))
+      (setq bufer-face-mode-face '(:family "Bookerly"))
+      (buffer-face-mode)
+      (text-scale-adjust 1)))
   :hook (Info-mode . my/Info-mode-config)
   :config
   (use-package info-look
@@ -1107,6 +1113,13 @@ Used as hook function for `kill-emacs-hook', because
       (interactive)
       (find-file (get-journal-file-yesterday))))
 
+  (setq org-hide-emphasis-markers t)
+  (setq org-emphasis-alist '(("*" bold "<strong>" "</strong>")
+                             ("/" italic "<i>" "</i>")
+                             ("_" underline "<span style=\"text-decoration:underline;\">" "</span>")
+                             ("-" (:strike-through t) "<del>" "</del>")
+                             ("=" (:foreground "yellow" :background "black"))
+                             ("~" org-verbatim "<code>" "</code>" verbatim)))
   (setq org-todo-keywords
         '("TODO" "|" "CANCELLED" "DONE")))
 
