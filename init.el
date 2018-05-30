@@ -1,8 +1,7 @@
-;;; init.el -- user customization for Emacs  -*- lexical-binding: t; no-byte-compile: t; -*-
+;;; init.el --- Emacs init file -*- lexical-binding: t; no-byte-compile: t; -*-
+;;; Commentary:
 
-;;; Commentary
-
-;; This is my emacs .init file. It uses straight.el and use-package
+;; This is my Emacs .init file. It uses straight.el and use-package
 ;; for all package maangement.
 
 ;;; Code:
@@ -11,6 +10,9 @@
 (setq package-enable-at-startup nil)
 
 (defvar my/file-name-handler-alist-old file-name-handler-alist)
+(defvar my/gc-cons-threshold-default gc-cons-threshold)
+(defvar my/gc-cons-percentage-default gc-cons-percentage)
+
 (setq file-name-handler-alist nil
       message-log-max 16384
       gc-cons-threshold (* 512 1024 1024)
@@ -20,8 +22,8 @@
   "Restore the default values of performance-critical variables."
   (setq file-name-handler-alist my/file-name-handler-alist-old
         message-log-max 1000
-        gc-cons-threshold 800000
-        gc-cons-percentage 0.1)
+        gc-cons-threshold my/gc-cons-threshold-default
+        gc-cons-percentage my/gc-cons-percentage-default)
   (garbage-collect)
   (remove-hook 'after-init-hook #'my/restore-default-values))
 
@@ -181,7 +183,7 @@ and ARGS."
       scroll-margin 0
       scroll-preserve-screen-position 1
       ;; Sentances can end with a '. ', rather than '.  '
-      sentance-end-double-space nil
+      sentence-end-double-space nil
       tab-width 2)
 
 (setq-default tab-wdith 2)
@@ -195,7 +197,9 @@ and ARGS."
 
 ;; Do not use UTF-8 with `ansi-term`
 (defun my/advise-ansi-term-coding-system ()
+  "Set coding system for ANSI Term buffers."
   (set-buffer-process-coding-system 'utf-8-unix 'utf-8-unix))
+
 (advice-add 'ansi-term :after #'my/advise-ansi-term-coding-system)
 
 (defalias 'yes-or-no-p #'y-or-n-p)
@@ -336,7 +340,10 @@ couldn't figure things out (ex: syntax errors)."
         (insert (mapconcat 'cdr list "\n"))))))
 
 (defun my/sort-use-package-declarations (beg end)
-  "Sort all use-package declarations in alphabetical order."
+  "Sort all use-package declarations in the region.
+Sorts the use-package declarations from BEG to END. Leaves the
+point at where it couldn't figure things out (ex: syntax
+errors)."
   (interactive "r")
   (let ((input (buffer-substring beg end))
         list last-point form result)
@@ -421,7 +428,8 @@ couldn't figure things out (ex: syntax errors)."
   (spaceline-emacs-theme))
 
 (defun my/unload-themes (&rest args)
-  "Unload any loaded custom themes."
+  "Unload any loaded custom themes.
+Any ARGS passed in are ignored."
   (when custom-enabled-themes
     (mapc #'disable-theme custom-enabled-themes)))
 
@@ -429,22 +437,22 @@ couldn't figure things out (ex: syntax errors)."
 ;; that they do not leave stray customizations behind.
 (advice-add 'load-theme :before #'my/unload-themes)
 
-(defvar my/default-frame-size '(50 120)
-  "My preferred default window height, width.")
-
-(setq default-frame-alist `((height . ,(car my/default-frame-size))
-                            (width  . ,(cdr my/default-frame-size))
-                            (font   . "Fira Code-10")))
-
 (defun my/ui-settings (&rest frame)
   "Setup the UI settings for a newly created `frame'."
   (interactive)
   (let ((f (or (car frame) (selected-frame))))
     (setq-default cursor-type 'box)
     (when (display-graphic-p)
-      (if (fboundp 'toggle-frame-maximized)
-          (add-hook 'window-setup-hook #'toggle-frame-maximized)
-        (set-frame-size f (cdr my/default-frame-size) (car my/default-frame-size)))
+      (if (>= (x-display-pixel-height) 2160)
+          (set-face-attribute 'default nil :height 140)
+        (set-face-attribute 'default nil :height 120))
+      (set-frame-position f 0 0)
+      (set-frame-size f 100 (/ (x-display-pixel-height) 17))
+
+      ;; (if (fboundp 'toggle-frame-maximized)
+      ;;     (add-hook 'window-setup-hook #'toggle-frame-maximized)
+      ;;   (set-frame-size f (cdr my/default-frame-size) (car my/default-frame-size)))
+
       ;; Apply font based on what's available on system in priority
       ;; order. Keep the current frame size, but apply font to all
       ;; frames.
@@ -463,7 +471,7 @@ couldn't figure things out (ex: syntax errors)."
         (set-frame-font "Hack-10" nil t))
        ((find-font (font-spec :name "3270-Medium"))
         (set-frame-font "3270-Medium-12" nil t))
-       (t ()))
+       (t nil))
       (load-theme 'afternoon t)
       (setq powerline-default-separator 'arrow-fade)
       (spaceline-emacs-theme))))
@@ -473,6 +481,9 @@ couldn't figure things out (ex: syntax errors)."
 ;; Emacs, otherwise the new frame will default to Emacs' default
 ;; settings and theme.
 (add-hook 'after-make-frame-functions #'my/ui-settings t)
+
+;; Apply settings to initial window.
+(add-hook 'window-setup-hook #'my/ui-settings t)
 
 ;;;
 ;;; Packages
@@ -498,6 +509,10 @@ couldn't figure things out (ex: syntax errors)."
 (use-package aggressive-indent
   :diminish aggressive-indent
   :hook (emacs-lisp-mode . aggressive-indent-mode))
+
+(use-package ansi-color
+  :straight f
+  :hook (messages-buffer-mode . ansi-color-for-comint-mode-on))
 
 (use-package anzu
   :commands (global-anzu-mode)
@@ -526,6 +541,7 @@ couldn't figure things out (ex: syntax errors)."
   :config
   (auto-compile-on-load-mode)
   (auto-compile-on-save-mode)
+  (setq compilation-scroll-output t)
   :hook (auto-compile-inhibit-comnpile . #'auto-compile-inhibit-compile-detached-git-head))
 
 (use-package auto-fill-mode
@@ -535,7 +551,6 @@ couldn't figure things out (ex: syntax errors)."
   :hook ((text-mode prog-mode) . turn-on-auto-fill))
 
 (use-package auto-yasnippet
-  :disabled
   :after (yasnippet)
   :bind (("C-c y a" . aya-create)
          ("C-c y e" . aya-expand)
@@ -585,28 +600,34 @@ Used as hook function for `kill-emacs-hook', because
   :hook (kill-emacs . my/bm-save-all-buffers))
 
 (use-package company
-  :defer t
+  :bind (:map company-active-map
+         ("C-n" . company-select-next-or-abort)
+         ("C-p" . company-select-previous-or-abort)
+         ("C-d" . company-show-doc-buffer)
+         ("M-." . company-show-loation))
   :config
-  (global-company-mode))
+  (global-company-mode)
+  (setq company-tooltip-limit 20
+        company-idle-delay .3
+        company-echo-delay 0))
 
 (use-package counsel
   :after swiper
-  :bind (("M-x"	  . counsel-M-x)
-         ("C-x C-f"	  . counsel-find-file)
-         ("C-h f"	  . counsel-describe-function)
-         ("C-h v"	  . counsel-describe-variable)
-         ("C-h i"	  . counsel-info-lookup-symbol)
-         ("C-h u"	  . counsel-unicode-char)
-         ("C-c k"	  . counsel-rg)
-         ("C-x l"	  . counsel-locate)
-         ("C-c g"	  . counsel-git-grep)
-         ("C-c h i"	  . counsel-imenu)
-         ("C-x p"	  . counsel-list-processes)
-         ("M-y"         . counsel-yank-pop))
+  :bind (("M-x"	     . counsel-M-x)
+         ("C-x C-f"  . counsel-find-file)
+         ("C-h f"    . counsel-describe-function)
+         ("C-h v"    . counsel-describe-variable)
+         ("C-h i"    . counsel-info-lookup-symbol)
+         ("C-h u"    . counsel-unicode-char)
+         ("C-c k"    . counsel-rg)
+         ("C-x l"    . counsel-locate)
+         ("C-c g"    . counsel-git-grep)
+         ("C-c h i"  . counsel-imenu)
+         ("C-x p"    . counsel-list-processes)
+         ("M-y"      . counsel-yank-pop))
   :config
-  (ivy-set-actions
-   'counsel-find-file
-   '(("j" find-file-other-window "other")))
+  (ivy-set-actions 'counsel-find-file
+                   '(("j" find-file-other-window "other")))
   (ivy-set-actions 'counsel-git-grep
                    '(("j" find-file-other-window "other"))))
 
@@ -659,7 +680,11 @@ Used as hook function for `kill-emacs-hook', because
   ;; https://metacpan.org/pod/DBI#connect
   :disabled
   :if (executable-find "perl")
-  ;; :ensure-system-package (DBI . "cpan install RPC::EPC::Service DBI DBD::SQLite DBD::Pg DBD::myslq")
+  ;; :ensure-system-package ((DBI               . "cpan install DBI")
+  ;;                         (RPC::EPC::Service . "cpan install RPC::EPC::Service")
+  ;;                         (DBD::SQLite       . "cpan install DBD::SQLite")
+  ;;                         (DBD::Pg           . "cpan install DBD::Pg")
+  ;;                         (DBD::mysql        . "cpan install DBD::mysql"))
   :defer)
 
 (use-package edit-server
@@ -688,6 +713,92 @@ Used as hook function for `kill-emacs-hook', because
   :diminish
   :hook ((c-mode-common emacs-lisp-mode) . eldoc-mode))
 
+(use-package emacs-lisp-mode
+  :straight f
+  :preface
+  ;;; More sensible indentation of multiline lists containing symbols.
+  ;;; See: https://emacs.stackexchange.com/questions/10230/how-to-indent-keywords-aligned
+  (defun my/lisp-indent-function (indent-point state)
+    "This function is the normal value of the variable `lisp-indent-function'.
+The function `calculate-lisp-indent' calls this to determine
+if the arguments of a Lisp function call should be indented specially.
+
+INDENT-POINT is the position at which the line being indented begins.
+Point is located at the point to indent under (for default indentation);
+STATE is the `parse-partial-sexp' state for that position.
+
+If the current line is in a call to a Lisp function that has a non-nil
+property `lisp-indent-function' (or the deprecated `lisp-indent-hook'),
+it specifies how to indent.  The property value can be:
+
+* `defun', meaning indent `defun'-style
+  \(this is also the case if there is no property and the function
+  has a name that begins with \"def\", and three or more arguments);
+
+* an integer N, meaning indent the first N arguments specially
+  (like ordinary function arguments), and then indent any further
+  arguments like a body;
+
+* a function to call that returns the indentation (or nil).
+  `lisp-indent-function' calls this function with the same two arguments
+  that it itself received.
+
+This function returns either the indentation to use, or nil if the
+Lisp function does not specify a special indentation."
+    (let ((normal-indent (current-column))
+          (orig-point (point)))
+      (goto-char (1+ (elt state 1)))
+      (parse-partial-sexp (point) calculate-lisp-indent-last-sexp 0 t)
+      (cond
+       ;; car of form doesn't seem to be a symbol, or is a keyword
+       ((and (elt state 2)
+             (or (not (looking-at "\\sw\\|\\s_"))
+                 (looking-at ":")))
+        (if (not (> (save-excursion (forward-line 1) (point))
+                    calculate-lisp-indent-last-sexp))
+            (progn (goto-char calculate-lisp-indent-last-sexp)
+                   (beginning-of-line)
+                   (parse-partial-sexp (point)
+                                       calculate-lisp-indent-last-sexp 0 t)))
+        ;; Indent under the list or under the first sexp on the same
+        ;; line as calculate-lisp-indent-last-sexp.  Note that first
+        ;; thing on that line has to be complete sexp since we are
+        ;; inside the innermost containing sexp.
+        (backward-prefix-chars)
+        (current-column))
+       ((and (save-excursion
+               (goto-char indent-point)
+               (skip-syntax-forward " ")
+               (not (looking-at ":")))
+             (save-excursion
+               (goto-char orig-point)
+               (looking-at ":")))
+        (save-excursion
+          (goto-char (+ 2 (elt state 1)))
+          (current-column)))
+       (t
+        (let ((function (buffer-substring (point)
+                                          (progn (forward-sexp 1) (point))))
+              method)
+          (setq method (or (function-get (intern-soft function)
+                                         'lisp-indent-function)
+                           (get (intern-soft function) 'lisp-indent-hook)))
+          (cond ((or (eq method 'defun)
+                     (and (null method)
+                          (> (length function) 3)
+                          (string-match "\\`def" function)))
+                 (lisp-indent-defform state indent-point))
+                ((integerp method)
+                 (lisp-indent-specform method state
+                                       indent-point normal-indent))
+                (method
+                 (funcall method indent-point state))))))))
+
+  (defun my/emacs-lisp-mode-config ()
+    "Emacs Lisp Mode configuration."
+    (setq-local lisp-indent-function #'my/lisp-indent-function))
+  :hook (emacs-lisp-mode . my/emacs-lisp-mode-config))
+
 (use-package exec-path-from-shell
   :if (eq system-type 'darwin)		; only needed on MacOS
   :defines (exec-patth-from-shell-variables)
@@ -711,9 +822,83 @@ Used as hook function for `kill-emacs-hook', because
   :commands er/expand-region
   :bind ("C-=" . er/expand-region))
 
+(use-package fill-column-indicator
+  :preface
+  (defvar my/htmlize-initial-fci-state nil
+    "Variable to store the state of `fci-mode' when `htmlize-buffer' is called.")
+  (defvar my/htmlize-initial-flyspell-state nil
+    "Variable to store the state of `flyspell-mode' when `htmlize-buffer' is
+called.")
+
+  (defun disable-mode-temporarily (mode orig-fun &rest args)
+    "Disable MODE before calling ORIG-FUN with ARGS; re-enable afterwards."
+    (let ((was-initially-on (when (symbol-value mode)
+                              (prog1
+                                  t
+                                (funcall mode -1)))))
+      (prog1
+          (apply orig-fun args)
+        (when was-initially-on
+          (funcall mode 1)))))
+
+  (defun disable-fci-temporarily (orig-fun &rest args)
+    "Disable fci-mode before calling ORIG-FUN with ARGS; re-enable afterwards."
+    (apply #'disable-mode-temporarily 'fci-mode orig-fun args))
+
+  ;; Fix for htmlize producing garbage newlines when using fci-mode.
+  (defun my/htmlize-before-hook-fn ()
+    (when (fboundp 'fci-mode)
+      (setq my/htmlize-initial-fci-state fci-mode)
+      (when fci-mode
+        (fci-mode -1)))
+    (when (fboundp 'flyspell-mode)
+      (setq my/htmlize-initial-flyspell-state flyspell-mode)
+      (when flyspell-mode
+        (flyspell-mode -1))))
+
+  (defun my/htmlize-after-hook-fn ()
+    (when (fboundp 'fci-mode)
+      (when my/htmlize-initial-fci-state
+        (fci-mode 1)))
+    (when (fboundp 'flyspell-mode)
+      (when my/htmlize-initial-flyspell-state
+        (flyspell-mode 1))))
+
+  (defvar my/fci-status nil
+    "Holds current FCI status.")
+
+  (defun my/disable-fci-during-company-complete (command)
+    "Fixes the issue where the first item is shown far off to the right."
+    (when (fboundp 'fci-mode)
+      (when (string= "show" command)
+        (setq my/fci-status fci-mode)
+        (turn-off-fci-mode))
+      (when (string= "hide" command)
+        (when my/fci-status
+          (turn-on-fci-mode)))))
+  :config
+  (setq-default fill-column 80)
+  (setq fci-rule-color "#ff0000"
+        fci-rule-character-color "#ff0000")
+
+  (with-eval-after-load 'company
+    (advice-add 'company-call-frontends :before #'my/disable-fci-during-company-complete))
+  (with-eval-after-load 'shell
+    (advice-add 'shell-command :around #'disable-fci-temporarily)
+    (advice-add 'shell-command-on-region :around #'disable-fci-temporarily))
+  :hook (htmlize-before . my/htmlize-before-hook-fn)
+  :hook (htmlize-after  . my/htmlize-after-hook-fn))
+
 (use-package ffap
   :defer t
   :bind ("C-c v" . ffap))
+
+(use-package flycheck
+  :config
+  (use-package flycheck-pos-tip
+    :config
+    (setq flycheck-pop-tip-timeout 0))
+  :hook (prog-mode . flycheck-mode))
 
 (use-package fullframe
   :defer t
@@ -1021,15 +1206,22 @@ initialization, it can loop until OS handles are exhausted."
          ("C-x C-)" . elmacro-show-last-macro)))
 
 (use-package lsp-mode
+  :preface
+  (defun my/set-projectile-root ()
+    "Set the LSP workspace to the current Projectile root."
+    (when (and (featurep 'projectile) lsp--cur-workspace)
+      (setq projectile-project-root (lsp--workspace-root lsp--cur-workspace))))
   :config
   (use-package lsp-ui
-    :after (lsp-mode)
     :config
     (with-eval-after-load 'flycheck
       (require 'lsp-flycheck))
     (with-eval-after-load 'imenu
       (add-hook 'lsp-after-open-hook #'lsp-enable-imenu))
-    :hook (lsp-mode . lsp-ui-mode)))
+    :hook (lsp-mode . lsp-ui-mode))
+
+  (with-eval-after-load 'projectile
+    (add-hook 'lsp-before-open-hook #'my/set-projectile-root)))
 
 (use-package macrostep
   :after (emacs-lisp-mode)
@@ -1059,43 +1251,51 @@ initialization, it can loop until OS handles are exhausted."
   :mode (("\\`README\\.md\\'" . gfm-mode)
          ("\\.md\\'"          . markdown-mode)
          ("\\.markdown\\'"    . markdown-mode))
+  :preface
+  (defun my/markdown-mode-config ()
+    "My markdown-mode configuration."
+    (auto-fill-mode +1)
+    (footnote-mode +1)
+    (visual-line-mode +1)
+    ;; do not treat "_" as a word separator
+    (modify-syntax-entry ?- "w")
+    (when (fboundp 'flyspell-mode)
+      (flyspell-mode +1))
+    (when (fboundp 'orgtbl-mode)
+      (turn-on-orgtbl))
+    (when (fboundp 'imenu)
+      (setq imenu-auto-rescan t)
+      (imenu-add-menubar-index)))
+
+  :hook (markdown-mode . my/markdown-mode-config)
   :init
-  (setq markdown-command (cond ((executable-find "multimarkdown") "multimarkdown")
-                               ((executable-find "markdown")      "markdown")
-                               (t                                 nil)))
+  (setq markdown-command
+        (cond ((executable-find "multimarkdown") "multimarkdown")
+              ((executable-find "markdown") "markdown")
+              (t nil)))
   :config
   (use-package markdown-preview-mode
-    :after markdown-mode
     :if (executable-find "multimarkdown")
     :init
     (setq markdown-preview-stylesheets
           (list (concat "https://github.com/dmarcotte/github-markdown-preview/"
-                        "blob/master/data/css/github.css"))))
-
-  (with-eval-after-load 'imenu
-    (require 'imenu)
-    (setq imenu-auto-rescan t)
-    (add-hook 'markdown-mode-hook #'imenu-add-menubar-index))
-  (with-eval-after-load 'flyspell-mode
-    ;; Turn on `flyspell-mode` when available.
-    (add-hook 'markdown-mode-hook (lambda () (flyspell-mode 1))))
-  :hook (markdown-mode . visual-line-mode))
+                        "blob/master/data/css/github.css")))))
 
 (use-package minibuffer
+  ;; TODO(markcol): setting `gc-cons-threshold' doesn't work in Emacs 27?!
   :disabled
   :straight f
   :preface
   (defun my/minibuffer-setup-hook ()
     "Setup minibuffer for use."
     ;; Disable garbage collection while in minibuffer to avoid stalls.
-
-    ;; TODO(markcol): setting `gc-cons-threshold' doesn't work in Emacs 27?!
     (setq gc-cons-threshold most-positive-fixnum))
 
   (defun my/minibuffer-exit-hook ()
-    "Restore minibuffer setup changes."
-    ;; Restore garbage collection afer exiting the minibuffer.
-    (setq gc-cons-threshold 800000))
+    "Restore minibuffer settings upon exit."
+    ;; Restore garbage collection threshold to default.
+    (setq gc-cons-threshold my/gc-cons-threshold-default))
+
   :hook (minibuffer-setup . my/minibuffer-setup-hook)
   :hook (minibuffer-exit  . my/minibuffer-exit-hook))
 
@@ -1108,10 +1308,11 @@ initialization, it can loop until OS handles are exhausted."
   :straight (org-plus-contrib
              :type git :repo "https://code.orgmode.org/bzg/org-mode.git"
              :local-repo "org" :files (:defaults "contrib/lisp/*.el"))
-  ;; TODO(markcol): configure org-crypt
   :config
+  ;; TODO(markcol): configure org-crypt
+
   ;; org-ql and org-agenda-ng are dependencies for org-sidebar, but
-  ;; not on MELPA.
+  ;; they are not on MELPA.
   (use-package org-ql
     :straight (org-ql :type git :host github :repo "alphapapa/org-agenda-ng"))
 
@@ -1119,7 +1320,8 @@ initialization, it can loop until OS handles are exhausted."
     :straight (org-agenda-ng :type git :host github :repo "alphapapa/org-agenda-ng"))
 
   (use-package org-sidebar
-    :after (org org-ql org-agenda-ng)
+    :requires (org-ql org-agenda-ng)
+    :after (org)
     :straight (org-sidebar :type git :host github :repo "alphapapa/org-sidebar")
     :after org
     :commands (org-sidebar)
@@ -1165,19 +1367,18 @@ initialization, it can loop until OS handles are exhausted."
   :bind (:map emacs-lisp-mode-map
               ("<return>" . paredit-newline))
   :preface
-  (defun my/paredit-mode-hook ()
-    "Paredit mode customizations."
+  (defun my/paredit-mode-config ()
+    "My paredit mode customizations."
     (require 'eldoc)
     (eldoc-add-command 'paredit-backward-delete
                        'paredit-close-round)
     (paredit-mode))
+  :hook ((lisp-mode emacs-lisp-mode) . my/paredit-mode-config)
   :config
   (use-package paredit-ext
     :straight f
     :load-path "lisp"
-    :after (paredit))
-
-  :hook ((lisp-mode emacs-lisp-mode) . my/paredit-mode-hook))
+    :after (paredit)))
 
 (use-package smartparens
   :disabled
@@ -1256,26 +1457,56 @@ initialization, it can loop until OS handles are exhausted."
       (let ((project-org-dir (expand-file-name "org" (projectile-project-root))))
         (make-directory project-org-dir t)
         (find-file-other-window (expand-file-name "notes.org" project-org-dir)))))
-
-  (defun my/set-projectile-root ()
-    "Automatically set the LSP workspace to the current Projectile root when changing projects."
-    (when lsp--cur-workspace
-      (setq projectile-project-root (lsp--workspace-root lsp--cur-workspace))))
   :init
   (setq projectile-enable-caching t)
   :config
   (projectile-global-mode +1)
+  (when (not (eq system-type 'windows-nt))
+    (setq projectile-indexing-method 'native))
+  (setq projectile-enable-caching t)
   (with-eval-after-load 'ivy
     (setq projectile-completion-system 'ivy))
   (with-eval-after-load 'helm
     (setq projectile-completion-system 'helm))
   (with-eval-after-load 'magit-branch
     (advice-add 'magit-checkout :after #'my/projectile-invalidate-cache)
-    (advice-add 'magit-branch-and-checkout :after #'my/projectile-invalidate-cache))
-  (with-eval-after-load 'lsp
-    (add-hook 'lsp-before-open-hook #'my/set-projectile-root)))
+    (advice-add 'magit-branch-and-checkout :after #'my/projectile-invalidate-cache)))
+
+(with-eval-after-load 'python
+  (setq python-shell-prompt-detect-failure-warning nil))
+
+(use-package elpy
+  :defer t
+  ;; :init
+  ;; (elpy-enable)
+  :config
+  (when (require 'flycheck nil t)
+    (remove-hook 'elpy-modules 'elpy-module-flymake)
+    (remove-hook 'elpy-modules 'elpy-module-yasnippet)
+    (remove-hook 'elpy-mode-hook 'elpy-module-highlight-indentation))
+  :config
+  (setq elpy-rpc-backend "jedi"))
+
+(use-package jedi-core
+  :defer t)
+
+(use-package company-jedi
+  :if (not (eq system-type 'windows-nt))
+  :defer t
+  :config
+  (with-eval-after-load 'python
+    (add-to-list 'company-backends '(company-jedi company-files))))
+
+(add-hook 'elpy-mode-hook
+          (lambda ()
+            (jco/define-bindings elpy-mode-map
+                                 '(("C-c C-k" . python-shell-send-buffer)
+                                   ("C-M-x" . python-shell-send-defun)))))
+
+
 
 (use-package python-mode
+  :if (executable-find "python")
   :mode "\\.py\\'"
   :interpreter "python"
   :bind (:map python-mode-map
@@ -1283,11 +1514,10 @@ initialization, it can loop until OS handles are exhausted."
               ("C-c C-z" . python-shell))
   :preface
   (defvar python-mode-initialized nil)
-  (defun my/python-mode-hook ()
+  (defun my/python-mode-config ()
     "My Python mode customizations."
     (unless python-mode-initialized
       (setq python-mode-initialized t)
-
       (info-lookup-add-help
        :mode 'python-mode
        :regexp "[a-zA-Z_0-9.]+"
@@ -1301,11 +1531,49 @@ initialization, it can loop until OS handles are exhausted."
                "\\([A-Za-z0-9_]+\\)() (in module \\([A-Za-z0-9_.]+\\))" item)
               (format "%s.%s" (match-string 2 item)
                       (match-string 1 item)))))))))
-    (set (make-local-variable 'parens-require-spaces) nil)
-    (setq indent-tabs-mode nil))
+    (setq python-shell-prompt-detect-failure-warning nil
+          indent-tabs-mode nil)
+    (set (make-local-variable 'parens-require-spaces) nil))
+  :hook (python-mode . my/python-mode-config)
   :config
-  (add-zeal-or-dash-docs python-mode "python")
-  :hook (python-mode . my/python-mode-hook))
+  (use-package elpy
+    :if (and (not (eq system-type 'windows-nt))
+             (executable-find "pip"))
+    ;; :ensure-system-package ((flake8   . "pip install flake8")
+    ;;                         (autopep8 . "pip install autopep8")
+    ;;                         (yapf     . "pip install yapf"))
+    :after (python-mode)
+    :bind (:map elpy-mode-map
+                ("C-c C-k" . python-shell-send-buffer)
+                ("C-M-x"   . python-shell-send-defun))
+    :config
+    (elpy-enable)
+    (with-eval-after-load 'flycheck
+      (remove-hook 'elpy-modules #'elpy-module-flymake)
+      (remove-hook 'elpy-modules #'elpy-module-yasnippet)
+      (remove-hook 'elpy-mode-hook #'elpy-module-highlight-indentation))
+    (with-eval-after-load 'rope
+      (setq elpy-rpc-backend "rope"))
+    (with-eval-after-load 'jedi-core
+      (setq elpy-rpc-backend "jedi"))
+    :hook (python-mode . elpy-mode))
+
+  (use-package jedi-core
+    :if (not (eq system-type 'windows-nt))
+    :if (executable-find "jedi")
+    ;; :ensure-system-package (jedi . "pip install jedi")
+    :defer t
+    :config
+    (use-package company-jedi
+      :if (not (eq system-type 'windows-nt))
+      :after (python-mode company jedi-core)
+      :defer t
+      :config
+      (with-eval-after-load 'company
+        (add-to-list 'company-backends '(company-jedi company-files))))
+    :hook (python-mode . jedi-mode))
+
+  (add-zeal-or-dash-docs python-mode "python"))
 
 (use-package rainbow-delimiters
   ;; rainbow-delimiters is a "rainbow parentheses"-like mode which
@@ -1499,11 +1767,6 @@ initialization, it can loop until OS handles are exhausted."
   :config
   (setq web-mode-code-indent-offset 2
         web-mode-enable-auto-quoting nil))
-
-(use-package which-func
-  :disabled
-  :defer t
-  :hook ((c-mode-common emacs-lisp-mode) . which-function-mode))
 
 (use-package which-key
   :defer 5
