@@ -200,8 +200,11 @@ and ARGS."
 
 (defalias 'yes-or-no-p #'y-or-n-p)
 
-;; Enable disabled commands
-(put 'downcase-region 'disabled nil)
+;; Enable some of the disabled commands
+(dolist (cmd '(downcase-region upcase-region narrow-to-region narrow-to-page))
+  (when (get cmd 'disabled)
+    (put cmd 'disabled nil)
+    (message "Disabled command '%s' enabled." cmd)))
 
 ;;;
 ;;; Functions
