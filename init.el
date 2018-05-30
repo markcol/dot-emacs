@@ -690,7 +690,6 @@ Used as hook function for `kill-emacs-hook', because
   :defer t)
 
 (use-package git-gutter-fringe
-  :defer t
   :diminish git-gutter-mode
   :preface
   (defun my/git-gutter-refresh-all ()
