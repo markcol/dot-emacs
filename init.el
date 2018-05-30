@@ -619,6 +619,15 @@ Used as hook function for `kill-emacs-hook', because
     ;; Show human-readable file sizes and sort numbers properly
     (setq-default dired-listing-switches "-alhv")))
 
+(use-package edbi
+  ;; Emacs Database Interface
+  ;; http://john.mercouris.online/emacs-database-interface.html
+  ;; https://metacpan.org/pod/DBI#connect
+  :disabled
+  :if (executable-find "perl")
+  ;; :ensure-system-package (DBI . "cpan install RPC::EPC::Service DBI DBD::SQLite DBD::Pg DBD::myslq")
+  :defer)
+
 (use-package edit-server
   :if window-system
   :defer 5
@@ -633,7 +642,7 @@ Used as hook function for `kill-emacs-hook', because
 (use-package editorconfig
   :disabled
   :if (file-exists-p (expand-file-name ".editorconfig" (getenv "HOME")))
-  ;; :require-system-package "EditorConfig"
+  ;; :ensure-system-package "EditorConfig"
   :defer t
   :config
   ;; Always the built-in core library instead of any EditorConfig executable to get properties.
