@@ -289,13 +289,15 @@ already narrowed."
                    user host port)))
       (error "No auth entry found for %s@%s:%s" user host port))))
 
-(defvar saved-window-configuration nil)
+(defvar saved-window-configuration nil
+  "Saved window configuration.")
 
 (setq load-path
       (append (delete-dups load-path)
               '("~/.emacs.d/lisp")))
 
 (defun filter (f args)
+  "Filter arguments using function `f'."
   (let (result)
     (dolist (arg args)
       (when (funcall f arg)
@@ -309,7 +311,6 @@ already narrowed."
 
 (defun my/sort-sexps-in-region (beg end)
   "Can be handy for sorting out duplicates.
-
 Sorts the sexps from BEG to END. Leaves the point at where it
 couldn't figure things out (ex: syntax errors)."
   (interactive "r")
@@ -334,6 +335,29 @@ couldn't figure things out (ex: syntax errors)."
         (delete-region (point-min) (point))
         (insert (mapconcat 'cdr list "\n"))))))
 
+(defun my/sort-use-package-declarations (beg end)
+  "Sort all use-package declarations in alphabetical order."
+  (interactive "r")
+  (let ((input (buffer-substring beg end))
+        list last-point form result)
+    (save-restriction
+      (save-excursion
+        (narrow-to-region beg end)
+        (goto-char (point-min))
+        (setq last-point (point-min))
+        (setq form t)
+        (while (and form (not (eobp)))
+          (setq form (ignore-errors (read (current-buffer))))
+          (when form
+            (add-to-list
+             'list
+             (cons
+              (prin1-to-string form)
+              (buffer-substring last-point (point))))
+            (setq last-point (point))))
+        (setq list (sort list (lambda (a b) (string< (car a) (car b)))))
+        (delete-region (point-min) (point))
+        (insert (mapconcat 'cdr list "\n"))))))
 
 ;;;
 ;;; Key Bindings
@@ -396,26 +420,31 @@ couldn't figure things out (ex: syntax errors)."
   (require 'spaceline-config)
   (spaceline-emacs-theme))
 
-(setq default-frame-alist '((height . 50)
-			    (width  . 120)
-			    (font   . "Fira Code-10")))
+(defun my/unload-themes (&rest args)
+  "Unload any loaded custom themes."
+  (when custom-enabled-themes
+    (mapc #'disable-theme custom-enabled-themes)))
 
-(defun my/unload-themes ()
-  "Unload any loaded themes."
-  (mapc #'disable-theme custom-enabled-themes))
-
-;; When loading a different theme, first unload any loaded themes so
+;; When loading a new theme, first unload any loaded themes so
 ;; that they do not leave stray customizations behind.
 (advice-add 'load-theme :before #'my/unload-themes)
 
+(defvar my/default-frame-size '(50 120)
+  "My preferred default window height, width.")
+
+(setq default-frame-alist `((height . ,(car my/default-frame-size))
+                            (width  . ,(cdr my/default-frame-size))
+                            (font   . "Fira Code-10")))
+
 (defun my/ui-settings (&rest frame)
   "Setup the UI settings for a newly created `frame'."
+  (interactive)
   (let ((f (or (car frame) (selected-frame))))
     (setq-default cursor-type 'box)
     (when (display-graphic-p)
       (if (fboundp 'toggle-frame-maximized)
-          (add-hook 'emacs-startup-hook #'toggle-frame-maximized)
-        (set-frame-size f 120 50))
+          (add-hook 'window-setup-hook #'toggle-frame-maximized)
+        (set-frame-size f (cdr my/default-frame-size) (car my/default-frame-size)))
       ;; Apply font based on what's available on system in priority
       ;; order. Keep the current frame size, but apply font to all
       ;; frames.
@@ -434,13 +463,15 @@ couldn't figure things out (ex: syntax errors)."
         (set-frame-font "Hack-10" nil t))
        ((find-font (font-spec :name "3270-Medium"))
         (set-frame-font "3270-Medium-12" nil t))
-       ((find-font (font-spec :name "courier"))
-        (set-frame-font "courier-10" nil t)))
-
-      (load-theme 'afternoon-theme t)
+       (t ()))
+      (load-theme 'afternoon t)
       (setq powerline-default-separator 'arrow-fade)
       (spaceline-emacs-theme))))
 
+;; Call my/ui-settings after making a new frame. This is required to
+;; apply UI settings to a new client window if running a daemonized
+;; Emacs, otherwise the new frame will default to Emacs' default
+;; settings and theme.
 (add-hook 'after-make-frame-functions #'my/ui-settings t)
 
 ;;;
