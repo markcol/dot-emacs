@@ -67,6 +67,7 @@
  '(semanticdb-default-save-directory "~/.emacs.d/data/semanticdb" t)
  '(server-auth-dir "~\\.emacs.d\\data\\server\\")
  '(slime-repl-history-file "~/.emacs.d/data/slime-history.eld" t)
+ '(tramp-persistency-file-name "~/.emacs.d/data/tramp")
  '(tool-bar-mode nil)
  '(uniquify-buffer-name-style (quote post-forward-angle-brackets) nil (uniquify))
  '(url-cache-directory "~/.emacs.d/data/url/cache")

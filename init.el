@@ -1,4 +1,5 @@
 ;;; init.el --- Emacs init file -*- lexical-binding: t; no-byte-compile: t; -*-
+
 ;;; Commentary:
 
 ;; This is my Emacs .init file. It uses straight.el and use-package
@@ -148,6 +149,7 @@ and ARGS."
 ;;; Settings
 ;;;
 
+(require 'cl)
 (require 'cl-lib)
 
 (defconst user-data-directory (expand-file-name "data" user-emacs-directory)
@@ -437,53 +439,50 @@ Any ARGS passed in are ignored."
 ;; that they do not leave stray customizations behind.
 (advice-add 'load-theme :before #'my/unload-themes)
 
-(defun my/ui-settings (&rest frame)
+(defun my/font-spec (size)
+  "Return the best font-spec based on what is installed.
+SIZE is the default font size. The selected font spec may use a
+different font size based on relative apperance."
+  ;; Name of font and point size adjustment
+  (setq fonts '(("Fira Code" . -2)
+                ("Fantasque Sans Mono" . 0)
+                ("Source Code Variable" . -2)
+                ("Source Code Pro" . -2)
+                ("Anonymous Pro" . -1)
+                ("Hack" . -2)
+                ("3270-Medium" . 0)))
+  (block checkfont
+    (dolist (font fonts)
+      (let ((name (car font))
+            (adj (cdr font)))
+        (when (find-font (font-spec :name name))
+          (return-from checkfont (format "%s-%d" name (+ size adj))))))
+    (format "Courier-%d" size)))
+
+(defun my/apply-ui-settings (&rest frame)
   "Setup the UI settings for a newly created `frame'."
   (interactive)
-  (let ((f (or (car frame) (selected-frame))))
-    (setq-default cursor-type 'box)
-    (when (display-graphic-p)
-      (if (>= (x-display-pixel-height) 2160)
-          (set-face-attribute 'default nil :height 140)
-        (set-face-attribute 'default nil :height 120))
+  (when (display-graphic-p)
+    (let ((f (or (car frame) (selected-frame)))
+          (ptsize (if (>= (x-display-pixel-height) 2160) 14 12))
+          (height (if (>= (x-display-pixel-height) 2160) 22 17)))
+      (set-face-attribute 'default nil :height (* ptsize 10))
       (set-frame-position f 0 0)
-      (set-frame-size f 100 (/ (x-display-pixel-height) 17))
-
-      ;; (if (fboundp 'toggle-frame-maximized)
-      ;;     (add-hook 'window-setup-hook #'toggle-frame-maximized)
-      ;;   (set-frame-size f (cdr my/default-frame-size) (car my/default-frame-size)))
-
-      ;; Apply font based on what's available on system in priority
-      ;; order. Keep the current frame size, but apply font to all
-      ;; frames.
-      (cond
-       ((find-font (font-spec :name "Fira Code"))
-        (set-frame-font "Fira Code-10" nil t))
-       ((find-font (font-spec :name "Source Code Variable"))
-        (set-frame-font "Source Code Variable-10" nil t))
-       ((find-font (font-spec :name "Source Code Pro"))
-        (set-frame-font "Source Code Pro-10" nil t))
-       ((find-font (font-spec :name "Fantasque Sans Mono"))
-        (set-frame-font "Fantasque Sans Mono-12" nil t))
-       ((find-font (font-spec :name "Anonymous Pro"))
-        (set-frame-font "Anonymous Pro-11" nil t))
-       ((find-font (font-spec :name "Hack"))
-        (set-frame-font "Hack-10" nil t))
-       ((find-font (font-spec :name "3270-Medium"))
-        (set-frame-font "3270-Medium-12" nil t))
-       (t nil))
-      (load-theme 'afternoon t)
-      (setq powerline-default-separator 'arrow-fade)
-      (spaceline-emacs-theme))))
+      (set-frame-size f 120 (/ (x-display-pixel-height) height))
+      (set-frame-font (my/font-spec ptsize) nil t)))
+  (setq-default cursor-type 'box)
+  (load-theme 'afternoon t)
+  (setq powerline-default-separator 'arrow-fade)
+  (spaceline-emacs-theme))
 
 ;; Call my/ui-settings after making a new frame. This is required to
 ;; apply UI settings to a new client window if running a daemonized
 ;; Emacs, otherwise the new frame will default to Emacs' default
 ;; settings and theme.
-(add-hook 'after-make-frame-functions #'my/ui-settings t)
+(add-hook 'after-make-frame-functions #'my/apply-ui-settings t)
 
 ;; Apply settings to initial window.
-(add-hook 'window-setup-hook #'my/ui-settings t)
+(add-hook 'window-setup-hook #'my/apply-ui-settings t)
 
 ;;;
 ;;; Packages
@@ -878,8 +877,8 @@ called.")
           (turn-on-fci-mode)))))
   :config
   (setq-default fill-column 80)
-  (setq fci-rule-color "#ff0000"
-        fci-rule-character-color "#ff0000")
+  (setq fci-rule-color "#484848"
+        fci-rule-character-color "#303030")
 
   (with-eval-after-load 'company
     (advice-add 'company-call-frontends :before #'my/disable-fci-during-company-complete))
@@ -910,6 +909,7 @@ called.")
 
 (use-package git-gutter-fringe
   :diminish git-gutter-mode
+  :commands git-gutter-mode
   :preface
   (defun my/git-gutter-refresh-all ()
     "Refresh all git-gutter windows unless initializing.
@@ -919,11 +919,12 @@ initialization, it can loop until OS handles are exhausted."
     ;; initialization is completed.
     (when after-init-time
       (git-gutter:update-all-windows)))
-  :config
-  (global-git-gutter-mode +1)
+  :init
   (with-eval-after-load 'magit
     ;; Refresh git-gutter buffers after Magit status changes
     (add-hook 'magit-post-refresh-hook #'my/git-gutter-refresh-all))
+  :config
+  (global-git-gutter-mode +1)
   :hook ((prog-mode) . git-gutter-mode))
 
 (use-package git-timemachine
@@ -951,11 +952,10 @@ initialization, it can loop until OS handles are exhausted."
          ("M-s d" . find-grep-dired)))
 
 (use-package hl-todo
-  :defer t
   :bind (:map hl-todo-mode-map
-              ("C-x P" . hl-todo-previous)
-              ("C-x N" . hl-todo-next)
-              ("C-x O" . hl-todo-occur))
+         ("C-x P" . hl-todo-previous)
+         ("C-x N" . hl-todo-next)
+         ("C-x O" . hl-todo-occur))
   :hook ((prog-mode . hl-todo-mode)))
 
 (use-package imenu
