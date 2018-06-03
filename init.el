@@ -9,6 +9,15 @@
 
 (defconst emacs-start-time (current-time))
 
+(defconst user-data-directory (expand-file-name "data" user-emacs-directory)
+  "Directory for data files.")
+
+(defconst user-document-directory (expand-file-name "~/Documents")
+  "Directory for user documents.")
+
+(defconst user-org-directory (expand-file-name "org" user-document-directory)
+  "Directory for user ‘org-mode’ files.")
+
 (defvar my/message-log-max-default message-log-max
   "Default value of `message-log-max'.")
 
@@ -51,8 +60,22 @@
 
 (add-hook 'after-init-hook #'my/after-init t)
 
-;; Bootstrap straight.el
+;;; Straight.el configuration settings.
+(setq
+ ;; Read autoloads in bulk to speed up stratup.
+ straight-cache-autoloads t
 
+ ;; Detect package modifications as they are made instead of using find(1) at
+ ;; init time.
+ straight-check-for-modifications 'live
+
+ ;; Use imenu to find use-package declarations
+ use-package-enable-imenu-support t
+
+ ;; Use straight.el to load missing packages for `use-package` by default.
+ straight-use-package-by-default t)
+
+;;; Bootstrap straight.el
 (let ((bootstrap-file (concat user-emacs-directory "straight/repos/straight.el/bootstrap.el"))
       (bootstrap-version 3))
   (unless (file-exists-p bootstrap-file)
@@ -77,82 +100,77 @@
 ;; 	"load your init-file here")
 ;;   (straight-finalize-transaction))
 
-;; Use straight.el to load missing packages for `use-package` by default.
-(setq straight-use-package-by-default t)
 
-;; Use imenu to find use-package declarations
-(setq use-package-enable-imenu-support t)
+;;; Use-package configuration settings.
+(setq
+ ;; If `use-package-expand-minimally` is nil (the default), use-package
+ ;; attempts to catch and report errors that occur during expansion of
+ ;; use-package declarations in your init file. Setting
+ ;; `use-package-expand-minimally` to t completely disables this checking.
+ use-package-expand-minimally nil
 
-;; Read autoloads in bulk to speed up stratup.
-(setq straight-cache-autoloads t)
+ ;; Enable tracing of use-package declarations for easier debugging.
+ use-package-verbose nil)
 
-;; Detect package modifications as they are made instead of using find(1) at
-;; init time.
-(setq straight-check-for-modifications 'live)
-
-;; Enable tracing of use-package declarations for easier debugging.
-;; (setq use-package-verbose nil)
-
-;; If `use-package-expand-minimally` is nil (the default), use-package
-;; attempts to catch and report errors that occur during expansion of
-;; use-package declarations in your init file. Setting
-;; `use-package-expand-minimally` to t completely disables this checking.
-;; (setq use-package-expand-minimally t)
-
-;; Bootstrap `use-package` integration for straight.el.
+;;; Bootstrap `use-package` integration for straight.el.
 (straight-use-package 'use-package)
-(use-package bind-key :commands bind-key)
 
-(use-package system-packages
-  :disabled
-  :if (and (eq system-type 'windows-nt)
-           (executable-find "choco"))
-  :preface
-  (defun system-packages--run-command (action &optional pack args)
-    "Run a command asynchronously using the system's package manager.
-See `system-packages-get-command' for how to use ACTION, PACK,
-and ARGS."
-    (let ((command (if (and (eq system-packages-package-manager 'choco)
-                            (memq action '(install uninstall update clean-cache)))
-                       (format "runas /user:administrator@%s \"%s\""
-                               system-name
-                               (system-packages-get-command action pack args))
-                     (system-packages-get-command action pack args)))
-          (default-directory (if system-packages-use-sudo
-                                 "/sudo::"
-                               default-directory)))
-      (if (eq system-type 'windows-nt)
-          (progn
-            (let ((shell-prompt-pattern "Enter the password for administrator@MHCOLBUR-LAP:")
-                  (comint-use-prompt-regexp "Enter the password for administrator@MHCOLBUR-LAP:"))
-              (shell-command command "*system-packages*")
-              (send-invisible "Enter administrator password: ")))
-        (async-shell-command command "*system-packages*"))))
-  :config
-  (add-to-list 'system-packages-supported-package-managers
-               '(choco .
-                       ((default-sudo . nil)
-                        (install . "choco install --noprogress")
-                        (search . "choco search")
-                        (uninstall . "choco uninstall")
-                        (update . "choco upgrade")
-                        (clean-cache . "choco optimize")
-                        (log . "type C:/ProgramData/chocolatey/logs/chocolatey.log")
-                        (get-info . "choco info")
-                        (get-info-remote . "choco info")
-                        (list-files-provided-by . "choco info")
-                        (verify-all-packages . nil)
-                        (verify-all-dependencies . nil)
-                        (remove-orphaned . nil)
-                        (list-installed-packages . "choco list -lai")
-                        (list-installed-packages-all . "choco list -ai")
-                        (list-dependencies-of . nil)
-                        (noconfirm . "-y"))))
-  (setq system-packages-use-sudo nil)
-  (setq system-packages-package-manager 'choco))
+;; (use-package bind-key :commands bind-key)
 
 (use-package use-package-ensure-system-package
-  :after (use-package system-packages) )
+  :if (not (eq system-type 'windows-nt))
+  :init
+  (use-package system-packages
+    :preface
+    (when (and f
+               (eq system-type 'windows-nt)
+               (executable-find "choco"))
+      (defun system-packages--run-command (action &optional pack args)
+        "Run a command asynchronously using the system's package manager.
+See `system-packages-get-command' for how to use ACTION, PACK,
+and ARGS."
+        (let ((command (if (and (eq system-packages-package-manager 'choco)
+                                (memq action '(install uninstall update clean-cache)))
+                           (format "runas /user:administrator@%s \"%s\""
+                                   system-name
+                                   (system-packages-get-command action pack args))
+                         (system-packages-get-command action pack args)))
+              (default-directory (if system-packages-use-sudo
+                                     "/sudo::"
+                                   default-directory)))
+          (if (eq system-type 'windows-nt)
+              (progn
+                (let ((shell-prompt-pattern "Enter the password for administrator@MHCOLBUR-LAP:")
+                      (comint-use-prompt-regexp "Enter the password for administrator@MHCOLBUR-LAP:"))
+                  (shell-command command "*system-packages*")
+                  (send-invisible "Enter administrator password: ")))
+            (async-shell-command command "*system-packages*"))))
+      )
+    :config
+    (when (and f
+               (eq system-type 'windows-nt)
+               (executable-find "choco"))
+      (add-to-list 'system-packages-supported-package-managers
+                   '(choco .
+                           ((default-sudo . nil)
+                            (install . "choco install --noprogress")
+                            (search . "choco search")
+                            (uninstall . "choco uninstall")
+                            (update . "choco upgrade")
+                            (clean-cache . "choco optimize")
+                            (log . "type C:/ProgramData/chocolatey/logs/chocolatey.log")
+                            (get-info . "choco info")
+                            (get-info-remote . "choco info")
+                            (list-files-provided-by . "choco info")
+                            (verify-all-packages . nil)
+                            (verify-all-dependencies . nil)
+                            (remove-orphaned . nil)
+                            (list-installed-packages . "choco list -lai")
+                            (list-installed-packages-all . "choco list -ai")
+                            (list-dependencies-of . nil)
+                            (noconfirm . "-y"))))
+      (setq system-packages-use-sudo nil)
+      (setq system-packages-package-manager 'choco))))
 
 (use-package use-package-chords
   :disabled
@@ -171,15 +189,6 @@ and ARGS."
 ;;;
 
 (require 'cl-lib)
-
-(defconst user-data-directory (expand-file-name "data" user-emacs-directory)
-  "Directory for data files.")
-
-(defconst user-document-directory (expand-file-name "~/Documents")
-  "Directory for user documents.")
-
-(defconst user-org-directory (expand-file-name "org" user-document-directory)
-  "Directory for user ‘org-mode’ files.")
 
 ;; Create any missing directories
 (dolist (dir (list user-data-directory user-document-directory user-org-directory))
