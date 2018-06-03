@@ -122,7 +122,7 @@
   :init
   (use-package system-packages
     :preface
-    (when (and f
+    (when (and nil
                (eq system-type 'windows-nt)
                (executable-find "choco"))
       (defun system-packages--run-command (action &optional pack args)
@@ -147,7 +147,7 @@ and ARGS."
             (async-shell-command command "*system-packages*"))))
       )
     :config
-    (when (and f
+    (when (and nil
                (eq system-type 'windows-nt)
                (executable-find "choco"))
       (add-to-list 'system-packages-supported-package-managers
@@ -1345,15 +1345,15 @@ initialization, it can loop until OS handles are exhausted."
   ;; org-ql and org-agenda-ng are dependencies for org-sidebar, but
   ;; they are not on MELPA.
   (use-package org-ql
-    :straight (org-ql :type git :host github :repo "alphapapa/org-agenda-ng"))
+    :straight (org-ql :host github :repo "alphapapa/org-agenda-ng"))
 
   (use-package org-agenda-ng
-    :straight (org-agenda-ng :type git :host github :repo "alphapapa/org-agenda-ng"))
+    :straight (org-agenda-ng :host github :repo "alphapapa/org-agenda-ng"))
 
   (use-package org-sidebar
     :requires (org-ql org-agenda-ng)
     :after (org)
-    :straight (org-sidebar :type git :host github :repo "alphapapa/org-sidebar")
+    :straight (org-sidebar :host github :repo "alphapapa/org-sidebar")
     :after org
     :commands (org-sidebar)
     :bind ("C-c o s" . org-sidebar))
@@ -1414,37 +1414,37 @@ initialization, it can loop until OS handles are exhausted."
 (use-package smartparens
   :disabled
   :bind (:map smartparens-mode-map
-              ;; Movement and navigation
-              ("C-M-f"       . sp-forward-sexp)
-              ("C-M-b"       . sp-backward-sexp)
-              ("C-M-u"       . sp-backward-up-sexp)
-              ("C-M-d"       . sp-down-sexp)
-              ("C-M-p"       . sp-backward-down-sexp)
-              ("C-M-n"       . sp-up-sexp)
-              ;; Deleting and killing
-              ("C-M-k"       . sp-kill-sexp)
-              ("C-M-w"       . sp-copy-sexp)
-              ;; Depth changing
-              ("M-s"         . sp-splice-sexp)
-              ("M-<up>"      . sp-splice-sexp-killing-backward)
-              ("M-<down>"    . sp-splice-sexp-killing-forward)
-              ("M-r"         . sp-splice-sexp-killing-around)
-              ("M-?"         . sp-convolute-sexp)
-              ;; Barfage & Slurpage
-              ("C-)"         . sp-forward-slurp-sexp)
-              ("C-<right>"   . sp-forward-barf-sexp)
-              ("C-}"         . sp-backward-up-sexp)
-              ("C-<left>"    . sp-forward-barf-sexp)
-              ("C-("         . sp-backward-slurp-sexp)
-              ("C-M-<left>"  . sp-backward-slurp-sexp)
-              ("C-{"         . sp-backward-barf-sexp)
-              ("C-M-<right>" . sp-backward-barf-sexp)
-              ("M-S"         . sp-split-sexp)
-              ("M-J"         . sp-join-sexp)
-              ("C-M-t"       . sp-transpose-sexp))
+         ;; Movement and navigation
+         ("C-M-f"       . sp-forward-sexp)
+         ("C-M-b"       . sp-backward-sexp)
+         ("C-M-u"       . sp-backward-up-sexp)
+         ("C-M-d"       . sp-down-sexp)
+         ("C-M-p"       . sp-backward-down-sexp)
+         ("C-M-n"       . sp-up-sexp)
+         ;; Deleting and killing
+         ("C-M-k"       . sp-kill-sexp)
+         ("C-M-w"       . sp-copy-sexp)
+         ;; Depth changing
+         ("M-s"         . sp-splice-sexp)
+         ("M-<up>"      . sp-splice-sexp-killing-backward)
+         ("M-<down>"    . sp-splice-sexp-killing-forward)
+         ("M-r"         . sp-splice-sexp-killing-around)
+         ("M-?"         . sp-convolute-sexp)
+         ;; Barfage & Slurpage
+         ("C-)"         . sp-forward-slurp-sexp)
+         ("C-<right>"   . sp-forward-barf-sexp)
+         ("C-}"         . sp-backward-up-sexp)
+         ("C-<left>"    . sp-forward-barf-sexp)
+         ("C-("         . sp-backward-slurp-sexp)
+         ("C-M-<left>"  . sp-backward-slurp-sexp)
+         ("C-{"         . sp-backward-barf-sexp)
+         ("C-M-<right>" . sp-backward-barf-sexp)
+         ("M-S"         . sp-split-sexp)
+         ("M-J"         . sp-join-sexp)
+         ("C-M-t"       . sp-transpose-sexp))
   :bind (:map smartparens-strict-mode-map
-              ("M-q"         . sp-indent-defun)
-              ("C-j"         . sp-newline))
+         ("M-q"         . sp-indent-defun)
+         ("C-j"         . sp-newline))
   :config
   (require 'smartparens-config)
 
@@ -1467,6 +1467,12 @@ initialization, it can loop until OS handles are exhausted."
   (smartparens-global-mode +1)
   (show-smartparens-global-mode +1)
   :hook ((lisp-mode emacs-lisp-mode) . smartparens-strict-mode))
+
+(use-package emacs-powerthesaurus
+  :defer
+  :straight (emacs-powerthesaurus
+             :host github :repo "SavchenkoValeriy/emacs-powerthesaurus")
+  :bind ("C-c C-t" . powerthesuarus-lookup-word))
 
 (use-package projectile
   :after ivy
