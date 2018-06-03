@@ -8,21 +8,32 @@
 ;;; Code:
 
 (defconst emacs-start-time (current-time))
-(setq package-enable-at-startup nil)
 
-(defvar my/file-name-handler-alist-old file-name-handler-alist)
-(defvar my/gc-cons-threshold-default gc-cons-threshold)
-(defvar my/gc-cons-percentage-default gc-cons-percentage)
+(defvar my/message-log-max-default message-log-max
+  "Default value of `message-log-max'.")
+
+(defvar my/file-name-handler-alist-default file-name-handler-alist
+  "Default value of `file-name-handler-alist'.")
+
+(defvar my/gc-cons-threshold-default gc-cons-threshold
+  "Default value of `gc-cons-threshold'.")
+
+(defvar my/gc-cons-percentage-default gc-cons-percentage
+  "Default value of `gc-cons-percentage'."  )
+
+(defvar my/saved-window-configuration nil
+  "My saved window configuration.")
 
 (setq file-name-handler-alist nil
       message-log-max 16384
       gc-cons-threshold (* 512 1024 1024)
-      gc-cons-percentage 0.6)
+      gc-cons-percentage 0.6
+      package-enable-at-startup nil)
 
 (defun my/restore-default-values ()
   "Restore the default values of performance-critical variables."
-  (setq file-name-handler-alist my/file-name-handler-alist-old
-        message-log-max 1000
+  (setq file-name-handler-alist my/file-name-handler-alist-default
+        message-log-max my/message-log-max-default
         gc-cons-threshold my/gc-cons-threshold-default
         gc-cons-percentage my/gc-cons-percentage-default)
   (garbage-collect)
@@ -41,6 +52,7 @@
 (add-hook 'after-init-hook #'my/after-init t)
 
 ;; Bootstrap straight.el
+
 (let ((bootstrap-file (concat user-emacs-directory "straight/repos/straight.el/bootstrap.el"))
       (bootstrap-version 3))
   (unless (file-exists-p bootstrap-file)
@@ -71,6 +83,13 @@
 ;; Use imenu to find use-package declarations
 (setq use-package-enable-imenu-support t)
 
+;; Read autoloads in bulk to speed up stratup.
+(setq straight-cache-autoloads t)
+
+;; Detect package modifications as they are made instead of using find(1) at
+;; init time.
+(setq straight-check-for-modifications 'live)
+
 ;; Enable tracing of use-package declarations for easier debugging.
 ;; (setq use-package-verbose nil)
 
@@ -85,6 +104,9 @@
 (use-package bind-key :commands bind-key)
 
 (use-package system-packages
+  :disabled
+  :if (and (eq system-type 'windows-nt)
+           (executable-find "choco"))
   :preface
   (defun system-packages--run-command (action &optional pack args)
     "Run a command asynchronously using the system's package manager.
@@ -107,28 +129,27 @@ and ARGS."
               (send-invisible "Enter administrator password: ")))
         (async-shell-command command "*system-packages*"))))
   :config
-  (when (eq system-type 'windows-nt)
-    (add-to-list 'system-packages-supported-package-managers
-                 '(choco .
-                         ((default-sudo . nil)
-                          (install . "choco install --noprogress")
-                          (search . "choco search")
-                          (uninstall . "choco uninstall")
-                          (update . "choco upgrade")
-                          (clean-cache . "choco optimize")
-                          (log . "type C:/ProgramData/chocolatey/logs/chocolatey.log")
-                          (get-info . "choco info")
-                          (get-info-remote . "choco info")
-                          (list-files-provided-by . "choco info")
-                          (verify-all-packages . nil)
-                          (verify-all-dependencies . nil)
-                          (remove-orphaned . nil)
-                          (list-installed-packages . "choco list -lai")
-                          (list-installed-packages-all . "choco list -ai")
-                          (list-dependencies-of . nil)
-                          (noconfirm . "-y"))))
-    (setq system-packages-use-sudo nil)
-    (setq system-packages-package-manager 'choco)))
+  (add-to-list 'system-packages-supported-package-managers
+               '(choco .
+                       ((default-sudo . nil)
+                        (install . "choco install --noprogress")
+                        (search . "choco search")
+                        (uninstall . "choco uninstall")
+                        (update . "choco upgrade")
+                        (clean-cache . "choco optimize")
+                        (log . "type C:/ProgramData/chocolatey/logs/chocolatey.log")
+                        (get-info . "choco info")
+                        (get-info-remote . "choco info")
+                        (list-files-provided-by . "choco info")
+                        (verify-all-packages . nil)
+                        (verify-all-dependencies . nil)
+                        (remove-orphaned . nil)
+                        (list-installed-packages . "choco list -lai")
+                        (list-installed-packages-all . "choco list -ai")
+                        (list-dependencies-of . nil)
+                        (noconfirm . "-y"))))
+  (setq system-packages-use-sudo nil)
+  (setq system-packages-package-manager 'choco))
 
 (use-package use-package-ensure-system-package
   :after (use-package system-packages) )
@@ -149,7 +170,6 @@ and ARGS."
 ;;; Settings
 ;;;
 
-(require 'cl)
 (require 'cl-lib)
 
 (defconst user-data-directory (expand-file-name "data" user-emacs-directory)
@@ -206,15 +226,30 @@ and ARGS."
 
 (defalias 'yes-or-no-p #'y-or-n-p)
 
-;; Enable some of the disabled commands
+;; Enable some disabled commands
 (dolist (cmd '(downcase-region upcase-region narrow-to-region narrow-to-page))
   (when (get cmd 'disabled)
     (put cmd 'disabled nil)
     (message "Disabled command '%s' enabled." cmd)))
 
+(setq load-path
+      (append (delete-dups load-path)
+              '("~/.emacs.d/lisp")))
+
 ;;;
 ;;; Functions
 ;;;
+
+(defun my/disable-mode-temporarily (mode orig-fun &rest args)
+  "Disable MODE before calling ORIG-FUN with ARGS; re-enable afterwards."
+  (let ((was-initially-on (when (symbol-value mode)
+                            (prog1
+                                t
+                              (funcall mode -1)))))
+    (prog1
+        (apply orig-fun args)
+      (when was-initially-on
+        (funcall mode 1)))))
 
 (defun my/reload-init ()
   "Reload init.el using straight.el's transaction system."
@@ -237,8 +272,11 @@ and ARGS."
       (load-file buffer-file-name)))
   (message "Evaluating %s... done." (buffer-name)))
 
-(defmacro add-zeal-or-dash-docs (mode docs)
-  "Add documentation for Zeal or Dash, depending on which is available."
+(defmacro my/add-zeal-or-dash-docs (mode docs)
+  "Add documentation for Zeal or Dash, depending on which is available.
+MODE is name of a programming mode. DOCS is a string which
+contains the name of the help documents which should be loaded for the
+given MODE."
   (let* ((app-name (if (eq system-type 'darwin) "dash" "zeal"))
          (app      (intern app-name))
          (app-list (intern (concat app-name "-at-point"))))
@@ -246,7 +284,7 @@ and ARGS."
     `(with-eval-after-load ',app
        (add-to-list ',app-list '(,mode . ,docs)))))
 
-(defun comment-dwim-line (&optional arg)
+(defun my/comment-dwim-line (&optional arg)
   "Replacement for the comment-dwim command.
 If no region is selected and current line is not blank and we are
 not at the end of the line, then comment current line.  Replaces
@@ -258,7 +296,7 @@ end of the line."
       (comment-or-uncomment-region (line-beginning-position) (line-end-position))
     (comment-dwim arg)))
 
-(defun narrow-or-widen-dwim (p)
+(defun my/narrow-or-widen-dwim (p)
   "Widen if buffer is narrowed, narrow-dwim otherwise.
 Dwim means: region, org-src-block, org-subtree, or defun,
 whichever applies first. Narrowing to org-src-block actually
@@ -283,7 +321,7 @@ already narrowed."
          (LaTeX-narrow-to-environment))
         (t (narrow-to-defun))))
 
-(defun lookup-password (host user port)
+(defun my/lookup-password (host user port)
   (require 'auth-source)
   (require 'auth-source-pass)
   (let ((auth (auth-source-search :host host :user user :port port)))
@@ -295,15 +333,12 @@ already narrowed."
                    user host port)))
       (error "No auth entry found for %s@%s:%s" user host port))))
 
-(defvar saved-window-configuration nil
-  "Saved window configuration.")
-
-(setq load-path
-      (append (delete-dups load-path)
-              '("~/.emacs.d/lisp")))
-
 (defun filter (f args)
-  "Filter arguments using function `f'."
+  "Apply F to the list ARGS, removing items where F nil.
+F is a function that takes a single argument and returns a
+non-nil value if the argument should be included in the filtered
+list. The list of filtered arguments is returned in the same
+order it was given."
   (let (result)
     (dolist (arg args)
       (when (funcall f arg)
@@ -372,8 +407,8 @@ errors)."
 ;;; Key Bindings
 ;;;
 
-(bind-key "M-;"     #'comment-dwim-line)
-(bind-key "C-c n"   #'narrow-or-widen-dwim)
+(bind-key "M-;"     #'my/comment-dwim-line)
+(bind-key "C-c n"   #'my/narrow-or-widen-dwim)
 (bind-key "C-x C-b" #'ibuffer)
 (bind-key "C-x C-r" #'revert-buffer)
 (bind-key "M-:"     #'pp-eval-expression)
@@ -440,7 +475,7 @@ Any ARGS passed in are ignored."
 (advice-add 'load-theme :before #'my/unload-themes)
 
 (defun my/font-spec (size)
-  "Return the best font-spec based on what is installed.
+  "Return the best 'font-spec' based on what is installed.
 SIZE is the default font size. The selected font spec may use a
 different font size based on relative apperance."
   ;; Name of font and point size adjustment
@@ -451,16 +486,16 @@ different font size based on relative apperance."
                 ("Anonymous Pro" . -1)
                 ("Hack" . -2)
                 ("3270-Medium" . 0)))
-  (block checkfont
+  (cl-block checkfont
     (dolist (font fonts)
       (let ((name (car font))
             (adj (cdr font)))
         (when (find-font (font-spec :name name))
-          (return-from checkfont (format "%s-%d" name (+ size adj))))))
+          (cl-return-from checkfont (format "%s-%d" name (+ size adj))))))
     (format "Courier-%d" size)))
 
 (defun my/apply-ui-settings (&rest frame)
-  "Setup the UI settings for a newly created `frame'."
+  "Setup the UI settings for a newly created FRAME."
   (interactive)
   (when (display-graphic-p)
     (let ((f (or (car frame) (selected-frame)))
@@ -824,32 +859,21 @@ Lisp function does not specify a special indentation."
 (use-package fill-column-indicator
   :preface
   (defvar my/htmlize-initial-fci-state nil
-    "Variable to store the state of `fci-mode' when `htmlize-buffer' is called.")
+    "Variable to store state of `fci-mode' when `htmlize-buffer' is called.")
   (defvar my/htmlize-initial-flyspell-state nil
-    "Variable to store the state of `flyspell-mode' when `htmlize-buffer' is
+    "Variable to store state of `flyspell-mode' when `htmlize-buffer' is
 called.")
 
-  (defun disable-mode-temporarily (mode orig-fun &rest args)
-    "Disable MODE before calling ORIG-FUN with ARGS; re-enable afterwards."
-    (let ((was-initially-on (when (symbol-value mode)
-                              (prog1
-                                  t
-                                (funcall mode -1)))))
-      (prog1
-          (apply orig-fun args)
-        (when was-initially-on
-          (funcall mode 1)))))
-
-  (defun disable-fci-temporarily (orig-fun &rest args)
+  (defun my/disable-fci-temporarily (orig-fun &rest args)
     "Disable fci-mode before calling ORIG-FUN with ARGS; re-enable afterwards."
-    (apply #'disable-mode-temporarily 'fci-mode orig-fun args))
+    (apply #'my/disable-mode-temporarily 'fci-mode orig-fun args))
 
   ;; Fix for htmlize producing garbage newlines when using fci-mode.
   (defun my/htmlize-before-hook-fn ()
     (when (fboundp 'fci-mode)
       (setq my/htmlize-initial-fci-state fci-mode)
       (when fci-mode
-        (fci-mode -1)))
+        (turn-off-fci-mode)))
     (when (fboundp 'flyspell-mode)
       (setq my/htmlize-initial-flyspell-state flyspell-mode)
       (when flyspell-mode
@@ -858,7 +882,7 @@ called.")
   (defun my/htmlize-after-hook-fn ()
     (when (fboundp 'fci-mode)
       (when my/htmlize-initial-fci-state
-        (fci-mode 1)))
+        (turn-on-fci-mode)))
     (when (fboundp 'flyspell-mode)
       (when my/htmlize-initial-flyspell-state
         (flyspell-mode 1))))
@@ -876,9 +900,9 @@ called.")
         (when my/fci-status
           (turn-on-fci-mode)))))
   :config
-  (setq-default fill-column 80)
-  (setq fci-rule-color "#484848"
-        fci-rule-character-color "#303030")
+  (let ((color "#303030"))
+    (setq fci-rule-color color
+          fci-rule-character-color color))
 
   (with-eval-after-load 'company
     (advice-add 'company-call-frontends :before #'my/disable-fci-during-company-complete))
@@ -886,7 +910,8 @@ called.")
     (advice-add 'shell-command :around #'disable-fci-temporarily)
     (advice-add 'shell-command-on-region :around #'disable-fci-temporarily))
   :hook (htmlize-before . my/htmlize-before-hook-fn)
-  :hook (htmlize-after  . my/htmlize-after-hook-fn))
+  :hook (htmlize-after  . my/htmlize-after-hook-fn)
+  :hook (prog-mode . turn-on-fci-mode))
 
 (use-package ffap
   :defer t
@@ -895,14 +920,13 @@ called.")
 (use-package flycheck
   :config
   (use-package flycheck-pos-tip
-    :config
+    :init
     (setq flycheck-pop-tip-timeout 0))
   :hook (prog-mode . flycheck-mode))
 
 (use-package fullframe
-  :defer t
-  :init
-  (autoload #'fullframe "fullframe"))
+  ;; Advise a command so that hte buffer dislays in a full-frame window.
+  :defer t)
 
 (use-package gitignore-mode
   :defer t)
@@ -913,19 +937,17 @@ called.")
   :preface
   (defun my/git-gutter-refresh-all ()
     "Refresh all git-gutter windows unless initializing.
-If `git-gutter:update-all-windows' is called during
+If `git-gutter:update-all-windows' is called during Emacs
 initialization, it can loop until OS handles are exhausted."
     ;; `after-init-time' is set to a non-nil value only after Emacs
     ;; initialization is completed.
     (when after-init-time
       (git-gutter:update-all-windows)))
   :init
+  (add-hook 'prog-mode-hook #'git-gutter-mode)
   (with-eval-after-load 'magit
     ;; Refresh git-gutter buffers after Magit status changes
-    (add-hook 'magit-post-refresh-hook #'my/git-gutter-refresh-all))
-  :config
-  (global-git-gutter-mode +1)
-  :hook ((prog-mode) . git-gutter-mode))
+    (add-hook 'magit-post-refresh-hook #'my/git-gutter-refresh-all)))
 
 (use-package git-timemachine
   :bind ("C-c x" . git-timemachine-toggle))
@@ -1472,46 +1494,13 @@ initialization, it can loop until OS handles are exhausted."
     (advice-add 'magit-checkout :after #'my/projectile-invalidate-cache)
     (advice-add 'magit-branch-and-checkout :after #'my/projectile-invalidate-cache)))
 
-(with-eval-after-load 'python
-  (setq python-shell-prompt-detect-failure-warning nil))
-
-(use-package elpy
-  :defer t
-  ;; :init
-  ;; (elpy-enable)
-  :config
-  (when (require 'flycheck nil t)
-    (remove-hook 'elpy-modules 'elpy-module-flymake)
-    (remove-hook 'elpy-modules 'elpy-module-yasnippet)
-    (remove-hook 'elpy-mode-hook 'elpy-module-highlight-indentation))
-  :config
-  (setq elpy-rpc-backend "jedi"))
-
-(use-package jedi-core
-  :defer t)
-
-(use-package company-jedi
-  :if (not (eq system-type 'windows-nt))
-  :defer t
-  :config
-  (with-eval-after-load 'python
-    (add-to-list 'company-backends '(company-jedi company-files))))
-
-(add-hook 'elpy-mode-hook
-          (lambda ()
-            (jco/define-bindings elpy-mode-map
-                                 '(("C-c C-k" . python-shell-send-buffer)
-                                   ("C-M-x" . python-shell-send-defun)))))
-
-
-
 (use-package python-mode
   :if (executable-find "python")
   :mode "\\.py\\'"
   :interpreter "python"
   :bind (:map python-mode-map
-              ("C-c c")
-              ("C-c C-z" . python-shell))
+         ("C-c c")
+         ("C-c C-z" . python-shell))
   :preface
   (defvar python-mode-initialized nil)
   (defun my/python-mode-config ()
@@ -1522,15 +1511,15 @@ initialization, it can loop until OS handles are exhausted."
        :mode 'python-mode
        :regexp "[a-zA-Z_0-9.]+"
        :doc-spec
-       '(("(python)Python Module Index" )
-         ("(python)Index"
-          (lambda
-            (item)
-            (cond
-             ((string-match
-               "\\([A-Za-z0-9_]+\\)() (in module \\([A-Za-z0-9_.]+\\))" item)
-              (format "%s.%s" (match-string 2 item)
-                      (match-string 1 item)))))))))
+        '(("(python)Python Module Index" )
+          ("(python)Index"
+           (lambda
+             (item)
+             (cond
+              ((string-match
+                "\\([A-Za-z0-9_]+\\)() (in module \\([A-Za-z0-9_.]+\\))" item)
+               (format "%s.%s" (match-string 2 item)
+                       (match-string 1 item)))))))))
     (setq python-shell-prompt-detect-failure-warning nil
           indent-tabs-mode nil)
     (set (make-local-variable 'parens-require-spaces) nil))
@@ -1544,8 +1533,8 @@ initialization, it can loop until OS handles are exhausted."
     ;;                         (yapf     . "pip install yapf"))
     :after (python-mode)
     :bind (:map elpy-mode-map
-                ("C-c C-k" . python-shell-send-buffer)
-                ("C-M-x"   . python-shell-send-defun))
+           ("C-c C-k" . python-shell-send-buffer)
+           ("C-M-x"   . python-shell-send-defun))
     :config
     (elpy-enable)
     (with-eval-after-load 'flycheck
@@ -1569,11 +1558,9 @@ initialization, it can loop until OS handles are exhausted."
       :after (python-mode company jedi-core)
       :defer t
       :config
-      (with-eval-after-load 'company
-        (add-to-list 'company-backends '(company-jedi company-files))))
+      (add-to-list 'company-backends '(company-jedi company-files)))
     :hook (python-mode . jedi-mode))
-
-  (add-zeal-or-dash-docs python-mode "python"))
+  (my/add-zeal-or-dash-docs python-mode "python"))
 
 (use-package rainbow-delimiters
   ;; rainbow-delimiters is a "rainbow parentheses"-like mode which
@@ -1613,8 +1600,18 @@ initialization, it can loop until OS handles are exhausted."
 (use-package rg
   :defer t
   :if (executable-find "rg")
+  :after (fullframe)
   ;; :ensure-system-package rg
-  )
+  :config
+  (fullframe rg quit-window
+             nil
+             (lambda ()
+               (let ((wconf (fullframe/current-buffer-window-config))
+                     (new-window (split-window-below)))
+                 (set-window-buffer new-window "*rg*")
+                 (fullframe/erase-current-buffer-window-config)
+                 (with-current-buffer "*rg*"
+                   (fullframe/set-current-buffer-window-config wconf))))))
 
 (use-package rust-mode
   :if (executable-find "rust")
@@ -1673,7 +1670,7 @@ initialization, it can loop until OS handles are exhausted."
     :config
     (flycheck-rust-setup))
 
-  (add-zeal-or-dash-docs rust-mode "rust")
+  (my/add-zeal-or-dash-docs rust-mode "rust")
   :hook (rust-mode . my/rust-mode-hook))
 
 (use-package savehist
@@ -1750,15 +1747,15 @@ initialization, it can loop until OS handles are exhausted."
         treemacs-tag-follow-delay           1.5
         treemacs-width                      30)
   :config
+  (use-package treemacs-projectile
+    :after (treemacs projectile)
+    :bind (("C-c t P" . treemacs-projectile)
+           ("C-c t p" . treemacs-projectile-toggle))
+    :config
+    (setq treemacs-header-function #'treemacs-projectile-create-header))
+
   (treemacs-follow-mode t)
   (treemacs-filewatch-mode t))
-
-(use-package treemacs-projectile
-  :after (treemacs projectile)
-  :config
-  (setq treemacs-header-function #'treemacs-projectile-create-header)
-  :bind (("C-c t P"    . treemacs-projectile)
-         ("C-c t p"    . treemacs-projectile-toggle)))
 
 (use-package web-mode
   :mode ("\\.html\\'"
