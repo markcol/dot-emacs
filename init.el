@@ -699,7 +699,7 @@ Used as hook function for `kill-emacs-hook', because
 
 (use-package dash-at-point
   :if (eq system-type 'darwin)
-  ;; :ensure-system-package "dash"
+  :ensure-system-package "dash"
   :defer t)
 
 (use-package dired
@@ -972,7 +972,7 @@ initialization, it can loop until OS handles are exhausted."
          ("C-c b ." . goto-last-change-reverse)))
 
 (use-package graphviz-dot-mode
-  ;; :ensure-system-package graphviz
+  :ensure-system-package graphviz
   :mode "\\.dot\\'")
 
 (use-package grep
@@ -1246,7 +1246,8 @@ initialization, it can loop until OS handles are exhausted."
   (use-package lsp-ui
     :config
     (with-eval-after-load 'flycheck
-      (require 'lsp-flycheck))
+      (require 'lsp-ui-flycheck)
+      (add-hook 'lsp-after-open-hook (lambda () (lsp-ui-flycheck-enable 1))))
     (with-eval-after-load 'imenu
       (add-hook 'lsp-after-open-hook #'lsp-enable-imenu))
     :hook (lsp-mode . lsp-ui-mode))
@@ -1526,15 +1527,15 @@ initialization, it can loop until OS handles are exhausted."
        :mode 'python-mode
        :regexp "[a-zA-Z_0-9.]+"
        :doc-spec
-        '(("(python)Python Module Index" )
-          ("(python)Index"
-           (lambda
-             (item)
-             (cond
-              ((string-match
-                "\\([A-Za-z0-9_]+\\)() (in module \\([A-Za-z0-9_.]+\\))" item)
-               (format "%s.%s" (match-string 2 item)
-                       (match-string 1 item)))))))))
+       '(("(python)Python Module Index" )
+         ("(python)Index"
+          (lambda
+            (item)
+            (cond
+             ((string-match
+               "\\([A-Za-z0-9_]+\\)() (in module \\([A-Za-z0-9_.]+\\))" item)
+              (format "%s.%s" (match-string 2 item)
+                      (match-string 1 item)))))))))
     (setq python-shell-prompt-detect-failure-warning nil
           indent-tabs-mode nil)
     (set (make-local-variable 'parens-require-spaces) nil))
@@ -1543,9 +1544,9 @@ initialization, it can loop until OS handles are exhausted."
   (use-package elpy
     :if (and (not (eq system-type 'windows-nt))
              (executable-find "pip"))
-    ;; :ensure-system-package ((flake8   . "pip install flake8")
-    ;;                         (autopep8 . "pip install autopep8")
-    ;;                         (yapf     . "pip install yapf"))
+    :ensure-system-package ((flake8   . "pip install flake8")
+                            (autopep8 . "pip install autopep8")
+                            (yapf     . "pip install yapf"))
     :after (python-mode)
     :bind (:map elpy-mode-map
            ("C-c C-k" . python-shell-send-buffer)
@@ -1565,7 +1566,7 @@ initialization, it can loop until OS handles are exhausted."
   (use-package jedi-core
     :if (not (eq system-type 'windows-nt))
     :if (executable-find "jedi")
-    ;; :ensure-system-package (jedi . "pip install jedi")
+    :ensure-system-package (jedi . "pip install jedi")
     :defer t
     :config
     (use-package company-jedi
@@ -1616,7 +1617,7 @@ initialization, it can loop until OS handles are exhausted."
   :defer t
   :if (executable-find "rg")
   :after (fullframe)
-  ;; :ensure-system-package rg
+  :ensure-system-package rg
   :config
   (fullframe rg quit-window
              nil
@@ -1629,13 +1630,55 @@ initialization, it can loop until OS handles are exhausted."
                    (fullframe/set-current-buffer-window-config wconf))))))
 
 (use-package rust-mode
-  :if (executable-find "rust")
   :mode "\\.rs\\'"
+  :if (executable-find "rust")
+  :ensure-system-package ((rustfmt . "rustup component add rustfmt-preview"))
+  :bind (:map rust-mode-map
+         ("C-c C-p" . my/rust-toggle-visbility )
+         ("C-c C-m" . my/rust-toggle-mutability)
+         ("C-c C-v" . my/rust-vec-as-slice))
   :preface
-  (defun my/rust-mode-hook ()
+  (defun my/rust-toggle-mutability ()
+    "Toggle the mutability of the variable at point."
+    (interactive)
+    (save-excursion
+      (racer-find-definition)
+      (back-to-indentation)
+      (forward-char 4)
+      (if (looking-at "mut ")
+          (delete-char 4)
+        (insert "mut "))))
+
+  (defun my/rust-toggle-visibility ()
+    "Toggle the public visibility of the function at point."
+    (interactive)
+    (save-excursion
+      ;; If we're already at the beginning of the function definition,
+      ;; `beginning-of-defun' moves to the previous function, so move elsewhere.
+      (end-of-line)
+
+      (beginning-of-defun)
+      (if (looking-at "pub ")
+          (delete-char 4)
+        (insert "pub "))))
+
+  (defun my/rust-vec-as-slice ()
+    "Convert the vector expression at point to a slice.
+foo -> &foo[..]"
+    (interactive)
+    (insert "&")
+    (forward-symbol 1)
+    (insert "[..]"))
+
+  (defun my/rust-mode-config ()
     "My Rust-mode configuration."
+    (eldoc-mode)
     (when (featurep 'flycheck)
       (flycheck-mode 1))
+    (lsp-ui-mode)
+    (company-mode)
+    (set (make-local-variable 'company-backends)
+         '((company-lsp company-yasnippet company-files)))
     (setq-local fill-column 100)
     (--each '((">=" . (?· (Br . Bl) ?≥))
               ("<=" . (?· (Br . Bl) ?≤))
@@ -1643,7 +1686,7 @@ initialization, it can loop until OS handles are exhausted."
               ("=>" . (?· (Br . Bl) ?➡))
               ("->" . (?· (Br . Bl) ?→)))
       (push it prettify-symbols-alist)))
-
+  :hook (rust-mode . my/rust-mode-config)
   :config
   (use-package cargo
     :after (rust)
@@ -1652,6 +1695,7 @@ initialization, it can loop until OS handles are exhausted."
   (use-package lsp-rust
     :after (lsp-mode lsp-ui rust)
     :if (executable-find "rustup")
+    :ensure-system-package (rls . "rustup component add rls-preview rust-analysis rust-src")
     :init
     (setq lsp-rust-rls-command '("rustup" "run" "nightly" "rls"))
     :hook (rust-mode . lsp-rust-enable))
@@ -1660,7 +1704,7 @@ initialization, it can loop until OS handles are exhausted."
     :disabled
     :after (rust)
     :unless (featurep 'lsp-rust)
-    ;; :ensure-system-package (racer . "cargo install racer")
+    :ensure-system-package (racer . "cargo install racer")
     :init
     ;; Tell racer to use the rustup managed rust-src
     (setq racer-cmd              (executable-find "racer")
@@ -1680,13 +1724,7 @@ initialization, it can loop until OS handles are exhausted."
       (add-hook 'racer-mode-hook #'company-mode))
     :hook (rust-mode . (racer-mode eldoc-mode)))
 
-  (use-package flycheck-rust
-    :after (flycheck rust)
-    :config
-    (flycheck-rust-setup))
-
-  (my/add-zeal-or-dash-docs rust-mode "rust")
-  :hook (rust-mode . my/rust-mode-hook))
+  (my/add-zeal-or-dash-docs rust-mode "rust"))
 
 (use-package savehist
   :config
@@ -1815,7 +1853,7 @@ initialization, it can loop until OS handles are exhausted."
 
 (use-package zeal-at-point
   :if (memq system-type '(gnu/linux))
-  ;; :ensure-system-package zeal
+  :ensure-system-package zeal
   :defer t)
 
 ;;;[END_USE_PACKAGE]
