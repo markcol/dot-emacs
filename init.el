@@ -451,20 +451,6 @@ errors)."
 ;;;
 
 
-(use-package afternoon-theme)
-
-(use-package all-the-icons
-  :if (display-graphic-p)
-  :defer t)
-
-(use-package spaceline
-  :demand t
-  :init
-  (setq powerline-default-separator 'arrow-fade)
-  :config
-  (require 'spaceline-config)
-  (spaceline-emacs-theme))
-
 (defun my/unload-themes (&rest args)
   "Unload any loaded custom themes.
 Any ARGS passed in are ignored."
@@ -479,25 +465,34 @@ Any ARGS passed in are ignored."
 (when (display-graphic-p)
   (add-hook 'focus-out-hook #'garbage-collect))
 
+(defvar my/preferred-fonts '(("Fira Code" . -2)
+                             ("Fantasque Sans Mono" . 0)
+                             ("Source Code Variable" . -2)
+                             ("Source Code Pro" . -2)
+                             ("Anonymous Pro" . -1)
+                             ("Hack" . -2)
+                             ("3270-Medium" . 0))
+  "List of preferred (font-name . point-size-adjustment) in priority order.")
+
+(defvar my/installed-fonts (filter (lambda (x) (find-font (font-spec :name (car x)))) my/preferred-fonts)
+  "List of installed (font-name . point-size-adjustment) in priority order.")
+
 (defun my/font-spec (size)
   "Return the best 'font-spec' based on what is installed.
 SIZE is the default font size. The selected font spec may use a
 different font size based on relative apperance."
-  ;; Name of font and point size adjustment
-  (setq fonts '(("Fira Code" . -2)
-                ("Fantasque Sans Mono" . 0)
-                ("Source Code Variable" . -2)
-                ("Source Code Pro" . -2)
-                ("Anonymous Pro" . -1)
-                ("Hack" . -2)
-                ("3270-Medium" . 0)))
-  (cl-block checkfont
-    (dolist (font fonts)
-      (let ((name (car font))
-            (adj (cdr font)))
-        (when (find-font (font-spec :name name))
-          (cl-return-from checkfont (format "%s-%d" name (+ size adj))))))
+  (if my/installed-fonts
+      (let ((name  (car (car my/installed-fonts)))
+            (adj  (cdr (car my/installed-fonts))))
+        (format "%s-%d" name (+ size adj)))
     (format "Courier-%d" size)))
+
+(use-package afternoon-theme)
+(use-package spaceline :demand t)
+(use-package all-the-icons :demand t)
+
+(defvar my/theme-name 'afternoon
+  "Name of preferred theme to use.")
 
 (defun my/apply-ui-settings (&rest frame)
   "Setup the UI settings for a newly created FRAME."
@@ -511,22 +506,18 @@ different font size based on relative apperance."
       (set-frame-size f 120 (/ (x-display-pixel-height) height))
       (set-frame-font (my/font-spec ptsize) nil t)))
   (setq-default cursor-type 'box)
-  (load-theme 'afternoon t)
+  (load-theme my/theme-name t)
   (custom-theme-set-faces
-   'afternoon
+   my/theme-name
    `(org-block-begin-line ((t (:underline "#a7a6aa" :height 0.8))))
    `(org-block-begin-line ((t (:underline "#a7a6aa" :height 0.8)))))
   (setq powerline-default-separator 'arrow-fade)
   (spaceline-emacs-theme))
 
-;; Call my/ui-settings after making a new frame. This is required to
-;; apply UI settings to a new client window if running a daemonized
-;; Emacs, otherwise the new frame will default to Emacs' default
-;; settings and theme.
-(add-hook 'after-make-frame-functions #'my/apply-ui-settings t)
-
-;; Apply settings to initial window.
-(add-hook 'window-setup-hook #'my/apply-ui-settings t)
+;; Apply my/ui-settings after making a new frame from a deamonized
+;; client or after Emacs initialization.
+(dolist (hook '(after-make-frame-functions window-setup-hook))
+  (add-hook hook #'my/apply-ui-settings t))
 
 ;;;
 ;;; Packages
