@@ -475,6 +475,9 @@ Any ARGS passed in are ignored."
 ;; that they do not leave stray customizations behind.
 (advice-add 'load-theme :before #'my/unload-themes)
 
+;; garbage collect when frame loses focus
+(when (display-graphic-p)
+  (add-hook 'focus-out-hook #'garbage-collect))
 
 (defun my/font-spec (size)
   "Return the best 'font-spec' based on what is installed.
@@ -1343,9 +1346,11 @@ _q_ quit            _b_ blame
       ("s" magit-status))))
 
 (use-package markdown-mode
-  :mode (("\\`README\\.md\\'" . gfm-mode)
-         ("\\.md\\'"          . markdown-mode)
-         ("\\.markdown\\'"    . markdown-mode))
+  :mode (("\\`INSTALL\\'"                 . gfm-mode)
+         ("\\`CONTRIBUTORS\\'"            . gfm-mode)
+         ("\\`LICENSE\\'"                 . gfm-mode)
+         ("\\`README\\.md\\'"               . gfm-mode)
+         ("\\.md\\'"                      . markdown-mode))
   :preface
   (defun my/markdown-mode-config ()
     "My markdown-mode configuration."
@@ -1360,29 +1365,7 @@ _q_ quit            _b_ blame
       (turn-on-orgtbl))
     (when (fboundp 'imenu)
       (setq imenu-auto-rescan t)
-      (imenu-add-menubar-index))
-    (with-eval-after-load 'hydra
-      (defhydra hydra-markdown (:color pink)
-        "
-^
-^Markdown^          ^Table Columns^     ^Table Rows^
-^────────^──────────^─────────────^─────^──────────^────────
-_q_ quit            _c_ insert          _r_ insert
-^^                  _C_ delete          _R_ delete
-^^                  _M-<left>_ left     _M-<down>_ down
-^^                  _M-<right>_ right   _M-<up>_ up
-^^                  ^^                  ^^
-"
-        ("q" nil)
-        ("c" markdown-table-insert-column)
-        ("C" markdown-table-delete-column)
-        ("r" markdown-table-insert-row)
-        ("R" markdown-table-delete-row)
-        ("M-<left>" markdown-table-move-column-left)
-        ("M-<right>" markdown-table-move-column-right)
-        ("M-<down>" markdown-table-move-row-down)
-        ("M-<up>" markdown-table-move-row-up))))
-
+      (imenu-add-menubar-index)))
   :hook (markdown-mode . my/markdown-mode-config)
   :init
   (setq markdown-command
@@ -1395,7 +1378,28 @@ _q_ quit            _c_ insert          _r_ insert
     :init
     (setq markdown-preview-stylesheets
           (list (concat "https://github.com/dmarcotte/github-markdown-preview/"
-                        "blob/master/data/css/github.css")))))
+                        "blob/master/data/css/github.css"))))
+  (with-eval-after-load 'hydra
+    (defhydra hydra-markdown (:color pink)
+      "
+^
+^Markdown^          ^Table Columns^     ^Table Rows^
+^────────^──────────^─────────────^─────^──────────^────────
+_q_ quit            _c_ insert          _r_ insert
+^^                  _C_ delete          _R_ delete
+^^                  _M-<left>_ left     _M-<down>_ down
+^^                  _M-<right>_ right   _M-<up>_ up
+^^                  ^^                  ^^
+"
+      ("q" nil)
+      ("c" markdown-table-insert-column)
+      ("C" markdown-table-delete-column)
+      ("r" markdown-table-insert-row)
+      ("R" markdown-table-delete-row)
+      ("M-<left>" markdown-table-move-column-left)
+      ("M-<right>" markdown-table-move-column-right)
+      ("M-<down>" markdown-table-move-row-down)
+      ("M-<up>" markdown-table-move-row-up))))
 
 (use-package minibuffer
   ;; TODO(markcol): setting `gc-cons-threshold' doesn't work in Emacs 27?!
