@@ -87,35 +87,36 @@
       (eval-print-last-sexp)))
   (load bootstrap-file nil 'nomessage))
 
-;; There is one final user-facing note about the transaction system,
-;; which is important when you want to load your init-file after
-;; Emacs init has already completed, but before straight.el has been
-;; loaded (so you cannot just wrap the call in
-;; straight-transaction). To cover this edge case (which arises, for
-;; example, when you wish to profile your init-file using something
-;; like esup), you should use the following pattern:
-;;
-;; (unwind-protect
-;;     (let ((straight-treat-as-init t))
-;; 	"load your init-file here")
-;;   (straight-finalize-transaction))
+(defun my/wrap-in-straight-transaction (orig-fn &rest args)
+  "Start the Emacs Startup Profiler using the straight.el transaction system.
 
+This is intended as an advising function for functions that load the init file after
+Emacs initialization, such as `esup':
 
-;;; Use-package configuration settings.
-(setq
- ;; If `use-package-expand-minimally` is nil (the default), use-package
- ;; attempts to catch and report errors that occur during expansion of
- ;; use-package declarations in your init file. Setting
- ;; `use-package-expand-minimally` to t completely disables this checking.
- use-package-expand-minimally nil
+  (advice-add 'esup :around #'my/wrap-in-straight-transation).
 
- ;; Enable tracing of use-package declarations for easier debugging.
- use-package-verbose nil)
+See https://github.com/raxod502/straight.el#the-transaction-system."
+  (unwind-protect
+    (let ((straight-treat-as-init t))
+      (apply orig-fn args))
+    (straight-finalize-transaction)))
 
-;;; Bootstrap `use-package` integration for straight.el.
-(straight-use-package 'use-package)
+;;; Bootstrap `use-package` 
+(straight-use-package 'use-package
+  :init
+  (setq
+   ;; If `use-package-expand-minimally` is nil (the default), use-package
+   ;; attempts to catch and report errors that occur during expansion of
+   ;; use-package declarations in your init file. Setting
+   ;; `use-package-expand-minimally` to t completely disables this checking.
+   use-package-expand-minimally nil
 
-;; (use-package bind-key :commands bind-key)
+   ;; Enable tracing of use-package declarations for easier debugging.
+   use-package-verbose nil)
+
+  :config
+  (require 'bind-key)
+  (require 'diminish)
 
 (use-package use-package-ensure-system-package
   :if (not (eq system-type 'windows-nt))
@@ -172,17 +173,17 @@ and ARGS."
       (setq system-packages-use-sudo nil)
       (setq system-packages-package-manager 'choco))))
 
-(use-package use-package-chords
-  :disabled
-  :after (use-package)
-  :config
-  ;; Define your chord bindings in the same manner as :bind using a cons or a list of conses:
-  ;;
-  ;; (use-package ace-jump-mode
-  ;;  :chords (("jj" . ace-jump-char-mode)
-  ;;           ("jk" . ace-jump-word-mode)
-  ;;           ("jl" . ace-jump-line-mode)))
-  (key-chord-mode 1))
+  (use-package use-package-chords
+    :disabled
+    :after (use-package)
+    :config
+    ;; Define your chord bindings in the same manner as :bind using a cons or a list of conses:
+    ;;
+    ;; (use-package ace-jump-mode
+    ;;  :chords (("jj" . ace-jump-char-mode)
+    ;;           ("jk" . ace-jump-word-mode)
+    ;;           ("jl" . ace-jump-line-mode)))
+    (key-chord-mode 1)))
 
 ;;;
 ;;; Settings
@@ -841,6 +842,10 @@ Lisp function does not specify a special indentation."
     "Emacs Lisp Mode configuration."
     (setq-local lisp-indent-function #'my/lisp-indent-function))
   :hook (emacs-lisp-mode . my/emacs-lisp-mode-config))
+
+(use-package esup
+  :init
+  (advice-add 'esup :around #'my/wrap-in-straight-transaction))
 
 (use-package exec-path-from-shell
   :if (eq system-type 'darwin)		; only needed on MacOS
