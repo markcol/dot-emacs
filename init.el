@@ -68,10 +68,6 @@
  ;; Detect package modifications as they are made instead of using find(1) at
  ;; init time.
  straight-check-for-modifications 'live
-
- ;; Use imenu to find use-package declarations
- use-package-enable-imenu-support t
-
  ;; Use straight.el to load missing packages for `use-package` by default.
  straight-use-package-by-default t)
 
@@ -97,26 +93,18 @@ Emacs initialization, such as `esup':
 
 See https://github.com/raxod502/straight.el#the-transaction-system."
   (unwind-protect
-    (let ((straight-treat-as-init t))
-      (apply orig-fn args))
+      (let ((straight-treat-as-init t))
+        (apply orig-fn args))
     (straight-finalize-transaction)))
 
-;;; Bootstrap `use-package` 
-(straight-use-package 'use-package
-  :init
-  (setq
-   ;; If `use-package-expand-minimally` is nil (the default), use-package
-   ;; attempts to catch and report errors that occur during expansion of
-   ;; use-package declarations in your init file. Setting
-   ;; `use-package-expand-minimally` to t completely disables this checking.
-   use-package-expand-minimally nil
+;;; Bootstrap `use-package`
+(setq use-package-expand-minimally nil
+      use-package-enable-imenu-support t
+      use-package-verbose nil)
+(straight-use-package 'use-package)
 
-   ;; Enable tracing of use-package declarations for easier debugging.
-   use-package-verbose nil)
-
-  :config
-  (require 'bind-key)
-  (require 'diminish)
+(use-package bind-key)
+(use-package diminish)
 
 (use-package use-package-ensure-system-package
   :if (not (eq system-type 'windows-nt))
@@ -173,17 +161,15 @@ and ARGS."
       (setq system-packages-use-sudo nil)
       (setq system-packages-package-manager 'choco))))
 
-  (use-package use-package-chords
-    :disabled
-    :after (use-package)
-    :config
-    ;; Define your chord bindings in the same manner as :bind using a cons or a list of conses:
-    ;;
-    ;; (use-package ace-jump-mode
-    ;;  :chords (("jj" . ace-jump-char-mode)
-    ;;           ("jk" . ace-jump-word-mode)
-    ;;           ("jl" . ace-jump-line-mode)))
-    (key-chord-mode 1)))
+(use-package use-package-chords
+  :disabled
+  :config
+  ;; Define your chord bindings in the same manner as :bind using a cons or a list of conses:
+  ;; (use-package ace-jump-mode
+  ;;  :chords (("jj" . ace-jump-char-mode)
+  ;;           ("jk" . ace-jump-word-mode)
+  ;;           ("jl" . ace-jump-line-mode)))
+  (key-chord-mode 1))
 
 ;;;
 ;;; Settings
@@ -295,14 +281,18 @@ given MODE."
        (add-to-list ',app-list '(,mode . ,docs)))))
 
 (defun my/comment-dwim-line (&optional arg)
-  "Replacement for the comment-dwim command.
+  "Replacement for the `comment-dwim' command.
 If no region is selected and current line is not blank and we are
-not at the end of the line, then comment current line.  Replaces
-default behaviour of comment-dwim, when it inserts comment at the
-end of the line."
+not at the end of the line, then comment current line. Replaces
+default behaviour of `comment-dwim', when it inserts comment at the
+end of the line.
+
+ARG is passed to the `comment-dwim' function
+but is not used."
   (interactive "*P")
   (comment-normalize-vars)
-  (if (and (not (region-active-p)) (not (looking-at "[ \t]*$")))
+  (if (and (not (region-active-p))
+           (not (looking-at "[ \t]*$")))
       (comment-or-uncomment-region (line-beginning-position) (line-end-position))
     (comment-dwim arg)))
 
@@ -332,6 +322,7 @@ already narrowed."
         (t (narrow-to-defun))))
 
 (defun my/lookup-password (host user port)
+  "Lookup password for the given HOST USER PORT."
   (require 'auth-source)
   (require 'auth-source-pass)
   (let ((auth (auth-source-search :host host :user user :port port)))
@@ -484,6 +475,7 @@ Any ARGS passed in are ignored."
 ;; that they do not leave stray customizations behind.
 (advice-add 'load-theme :before #'my/unload-themes)
 
+
 (defun my/font-spec (size)
   "Return the best 'font-spec' based on what is installed.
 SIZE is the default font size. The selected font spec may use a
@@ -517,6 +509,10 @@ different font size based on relative apperance."
       (set-frame-font (my/font-spec ptsize) nil t)))
   (setq-default cursor-type 'box)
   (load-theme 'afternoon t)
+  (custom-theme-set-faces
+   'afternoon
+   `(org-block-begin-line ((t (:underline "#a7a6aa" :height 0.8))))
+   `(org-block-begin-line ((t (:underline "#a7a6aa" :height 0.8)))))
   (setq powerline-default-separator 'arrow-fade)
   (spaceline-emacs-theme))
 
@@ -688,7 +684,9 @@ Used as hook function for `kill-emacs-hook', because
          ([remap kill-whole-line]        . crux-kill-whole-line)))
 
 (use-package css-mode
-  :mode "\\.css\\'")
+  :mode "\\.css\\'"
+  :init
+  (setq-default css-indent-offset 2))
 
 (use-package csv-mode
   :mode "\\.csv\\'")
@@ -843,6 +841,12 @@ Lisp function does not specify a special indentation."
     (setq-local lisp-indent-function #'my/lisp-indent-function))
   :hook (emacs-lisp-mode . my/emacs-lisp-mode-config))
 
+(use-package emacs-powerthesaurus
+  :defer
+  :straight (emacs-powerthesaurus
+             :host github :repo "SavchenkoValeriy/emacs-powerthesaurus")
+  :bind ("C-c C-t" . powerthesuarus-lookup-word))
+
 (use-package esup
   :init
   (advice-add 'esup :around #'my/wrap-in-straight-transaction))
@@ -936,7 +940,30 @@ called.")
   (use-package flycheck-pos-tip
     :init
     (setq flycheck-pop-tip-timeout 0))
-  :hook (prog-mode . flycheck-mode))
+  :hook (prog-mode . flycheck-mode)
+  :config
+  (with-eval-after-load 'hydra
+    (defhydra hydra-flycheck (:color pink)
+      "
+^
+^Flycheck^          ^Errors^            ^Checker^
+^────────^──────────^──────^────────────^───────^───────────
+_q_ quit            _<_ previous        _?_ describe
+_m_ manual          _>_ next            _d_ disable
+_v_ verify setup    _f_ check           _s_ select
+^^                  _l_ list            ^^
+^^                  ^^                  ^^
+"
+      ("q" nil)
+      ("<" flycheck-previous-error)
+      (">" flycheck-next-error)
+      ("?" flycheck-describe-checker :color blue)
+      ("d" flycheck-disable-checker :color blue)
+      ("f" flycheck-buffer)
+      ("l" flycheck-list-errors :color blue)
+      ("m" flycheck-manual :color blue)
+      ("s" flycheck-select-checker :color blue)
+      ("v" flycheck-verify-setup :color blue))))
 
 (use-package fullframe
   ;; Advise a command so that hte buffer dislays in a full-frame window.
@@ -947,7 +974,6 @@ called.")
 
 (use-package git-gutter-fringe
   :diminish git-gutter-mode
-  :commands git-gutter-mode
   :preface
   (defun my/git-gutter-refresh-all ()
     "Refresh all git-gutter windows unless initializing.
@@ -993,6 +1019,21 @@ initialization, it can loop until OS handles are exhausted."
          ("C-x N" . hl-todo-next)
          ("C-x O" . hl-todo-occur))
   :hook ((prog-mode . hl-todo-mode)))
+
+(use-package hydra
+  :preface
+  (defvar-local my/ongoing-hydra-body nil)
+  (defun my/ongoing-hydra ()
+    (interactive)
+    (if my/ongoing-hydra-body
+        (funcall my/ongoing-hydra-body)
+      (user-error "Function my/ongoing-hydra: my/ongoing-hydra-body is not set")))
+  :bind
+  ("C-c f" . hydra-flycheck/body)
+  ("C-c g" . hydra-magit/body)
+  ("C-c p" . hydra-projectile/body)
+  :config
+  (setq-default hydra-default-hint nil))
 
 (use-package imenu
   :defer t
@@ -1282,7 +1323,24 @@ initialization, it can loop until OS handles are exhausted."
   (delete 'Git vc-handled-backends)
 
   ;; Check excessively long summary lines in commit messages
-  (add-to-list 'git-commit-style-convention-checks 'overlong-summary-line))
+  (add-to-list 'git-commit-style-convention-checks 'overlong-summary-line)
+  (with-eval-after-load 'hydra
+    (defhydra hydra-magit (:color blue)
+      "
+^
+^Magit^             ^Do^
+^─────^─────────────^──^────────────────
+_q_ quit            _b_ blame
+^^                  _c_ clone
+^^                  _i_ init
+^^                  _s_ status
+^^                  ^^
+"
+      ("q" nil)
+      ("b" magit-blame)
+      ("c" magit-clone)
+      ("i" magit-init)
+      ("s" magit-status))))
 
 (use-package markdown-mode
   :mode (("\\`README\\.md\\'" . gfm-mode)
@@ -1302,7 +1360,28 @@ initialization, it can loop until OS handles are exhausted."
       (turn-on-orgtbl))
     (when (fboundp 'imenu)
       (setq imenu-auto-rescan t)
-      (imenu-add-menubar-index)))
+      (imenu-add-menubar-index))
+    (with-eval-after-load 'hydra
+      (defhydra hydra-markdown (:color pink)
+        "
+^
+^Markdown^          ^Table Columns^     ^Table Rows^
+^────────^──────────^─────────────^─────^──────────^────────
+_q_ quit            _c_ insert          _r_ insert
+^^                  _C_ delete          _R_ delete
+^^                  _M-<left>_ left     _M-<down>_ down
+^^                  _M-<right>_ right   _M-<up>_ up
+^^                  ^^                  ^^
+"
+        ("q" nil)
+        ("c" markdown-table-insert-column)
+        ("C" markdown-table-delete-column)
+        ("r" markdown-table-insert-row)
+        ("R" markdown-table-delete-row)
+        ("M-<left>" markdown-table-move-column-left)
+        ("M-<right>" markdown-table-move-column-right)
+        ("M-<down>" markdown-table-move-row-down)
+        ("M-<up>" markdown-table-move-row-up))))
 
   :hook (markdown-mode . my/markdown-mode-config)
   :init
@@ -1386,6 +1465,33 @@ initialization, it can loop until OS handles are exhausted."
       (interactive)
       (find-file (get-journal-file-yesterday))))
 
+  (use-package toc-org
+    :after org)
+
+  (with-eval-after-load 'hydra
+    (defhydra hydra-org (:color pink)
+      "
+^
+^Org^               ^Links^             ^Outline^
+^───^───────────────^─────^─────────────^───────^───────────
+_q_ quit            _i_ insert          _<_ previous
+^^                  _n_ next            _>_ next
+^^                  _p_ previous        _a_ all
+^^                  _s_ store           _o_ goto
+^^                  ^^                  _v_ overview
+^^                  ^^                  ^^
+"
+      ("q" nil)
+      ("<" org-backward-element)
+      (">" org-forward-element)
+      ("a" outline-show-all)
+      ("i" org-insert-link :color blue)
+      ("n" org-next-link)
+      ("o" helm-org-in-buffer-headings :color blue)
+      ("p" org-previous-link)
+      ("s" org-store-link)
+      ("v" org-overview)))
+
   (setq org-hide-emphasis-markers t)
   (setq org-emphasis-alist '(("*" bold "<strong>" "</strong>")
                              ("/" italic "<i>" "</i>")
@@ -1400,9 +1506,9 @@ initialization, it can loop until OS handles are exhausted."
   :diminish
   :commands (paredit-mode paredit-backward-delete paredit-close-round paredit-newline)
   :bind (:map lisp-mode-map
-              ("<return>" . paredit-newline))
+         ("<return>" . paredit-newline))
   :bind (:map emacs-lisp-mode-map
-              ("<return>" . paredit-newline))
+         ("<return>" . paredit-newline))
   :preface
   (defun my/paredit-mode-config ()
     "My paredit mode customizations."
@@ -1474,12 +1580,6 @@ initialization, it can loop until OS handles are exhausted."
   (show-smartparens-global-mode +1)
   :hook ((lisp-mode emacs-lisp-mode) . smartparens-strict-mode))
 
-(use-package emacs-powerthesaurus
-  :defer
-  :straight (emacs-powerthesaurus
-             :host github :repo "SavchenkoValeriy/emacs-powerthesaurus")
-  :bind ("C-c C-t" . powerthesuarus-lookup-word))
-
 (use-package projectile
   :after ivy
   :defer 5
@@ -1513,7 +1613,31 @@ initialization, it can loop until OS handles are exhausted."
     (setq projectile-completion-system 'helm))
   (with-eval-after-load 'magit-branch
     (advice-add 'magit-checkout :after #'my/projectile-invalidate-cache)
-    (advice-add 'magit-branch-and-checkout :after #'my/projectile-invalidate-cache)))
+    (advice-add 'magit-branch-and-checkout :after #'my/projectile-invalidate-cache))
+  (with-eval-after-load 'hydra
+    (defhydra hydra-projectile (:color blue)
+      "
+^
+^Projectile^        ^Buffers^           ^Find^              ^Search^
+^──────────^────────^───────^───────────^────^──────────────^──────^────────────
+_q_ quit            _b_ list            _d_ directory       _r_ replace
+_i_ reset cache     _K_ kill all        _D_ root            _R_ regexp replace
+^^                  _S_ save all        _f_ file            _s_ ag
+^^                  ^^                  _p_ project         ^^
+^^                  ^^                  ^^                  ^^
+"
+      ("q" nil)
+      ("b" helm-projectile-switch-to-buffer)
+      ("d" helm-projectile-find-dir)
+      ("D" projectile-dired)
+      ("f" helm-projectile-find-file)
+      ("i" projectile-invalidate-cache :color red)
+      ("K" projectile-kill-buffers)
+      ("p" helm-projectile-switch-project)
+      ("r" projectile-replace)
+      ("R" projectile-replace-regexp)
+      ("s" helm-projectile-ag)
+      ("S" projectile-save-project-buffers))))
 
 (use-package python-mode
   :if (executable-find "python")
@@ -1738,6 +1862,14 @@ foo -> &foo[..]"
 (use-package saveplace
   :config
   (save-place-mode 1))
+
+(use-package scss-mode
+  :mode ("\\.sass\\'" "\\.scss\\'")
+  :preface
+  (defun my/scss-set-comment-style ()
+    (setq-local comment-end "")
+    (setq-local comment-start "//"))
+  :hook (scss-mode . my/scss-set-comment-style))
 
 (use-package server
   :preface
