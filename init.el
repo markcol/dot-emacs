@@ -1101,22 +1101,31 @@ initialization, it can loop until OS handles are exhausted."
   :no-require t)
 
 (use-package ivy
+  :stright (:host github
+            :repo "raxod502/swiper"
+            :files (:defaults (:exclude
+                               "swiper.el"
+                               "counsel.el"
+                               "ivy-hydra.el")
+                    "doc/ivy-help.org")
+            :branch "fork/1"
+            :upstream (:host github :repo "abo-abo/swiper"))
   :defer 5
   :diminish
   :bind (("C-x b" . ivy-switch-buffer)
          ("C-x B" . ivy-switch-buffer-other-window)
          ("M-H"   . ivy-resume))
   :bind (:map ivy-minibuffer-map
-              ("<tab>" . ivy-alt-done)
-              ("SPC"   . ivy-alt-done-or-space)
-              ("C-d"   . ivy-done-or-delete-char)
-              ("C-i"   . ivy-partial-or-done)
-              ("C-r"   . ivy-previous-line-or-history)
-              ("M-r"   . ivy-reverse-i-search)
-              ("M-j"   . my/ivy-yank-whole-word)
-              ("M-y"   . ivy-next-line))
+         ("<tab>" . ivy-alt-done)
+         ("SPC"   . ivy-alt-done-or-space)
+         ("C-d"   . ivy-done-or-delete-char)
+         ("C-i"   . ivy-partial-or-done)
+         ("C-r"   . ivy-previous-line-or-history)
+         ("M-r"   . ivy-reverse-i-search)
+         ("M-j"   . my/ivy-yank-whole-word)
+         ("M-y"   . ivy-next-line))
   :bind (:map ivy-switch-buffer-map
-              ("C-k" . ivy-switch-buffer-kill))
+         ("C-k" . ivy-switch-buffer-kill))
   :preface
   (defun ivy-done-or-delete-char ()
     (interactive)
@@ -1574,6 +1583,18 @@ _q_ quit            _i_ insert          _<_ previous
   (smartparens-global-mode +1)
   (show-smartparens-global-mode +1)
   :hook ((lisp-mode emacs-lisp-mode) . smartparens-strict-mode))
+
+(use-package prescient
+  :config
+  (use-package ivy-prescient
+    :after ivy
+    :config
+    (ivy-prescient-mode +1))
+  (use-package company-prescient
+    :after company
+    :config
+    (company-prescient-mode +1))
+  (prescient-persist-mode +1))
 
 (use-package projectile
   :after ivy
