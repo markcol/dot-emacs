@@ -192,8 +192,8 @@ and ARGS."
       (setq server-auth-dir                 (etc "server-auth/"))
       (setq slime-repl-history-file         (var "slime-history.eld"))))
   (require 'recentf)
-  (add-to-list 'recentf-exclude no-litering-var-directory)
-  (add-to-list 'recentf-exclude no-litering-etc-directory))
+  (add-to-list 'recentf-exclude no-littering-var-directory)
+  (add-to-list 'recentf-exclude no-littering-etc-directory))
 
 (load (expand-file-name "settings" user-emacs-directory) :noerror)
 
@@ -1309,12 +1309,27 @@ initialization, it can loop until OS handles are exhausted."
     :config
     (with-eval-after-load 'flycheck
       (require 'lsp-ui-flycheck)
-      (add-hook 'lsp-after-open-hook (lambda () (lsp-ui-flycheck-enable 1))))
+      (add-hook 'lsp-after-open-hook #'lsp-ui-flycheck-enable))
     (with-eval-after-load 'imenu
+      (require 'lsp-imenu)
       (add-hook 'lsp-after-open-hook #'lsp-enable-imenu))
+    (setq lsp-ui-sideline-ignore-duplicate t)
     :hook (lsp-mode . lsp-ui-mode))
 
+  (use-package company-lsp
+    :after company
+    :preface
+    (defun my/lsp-set-cfg ()
+      (let ((lsp-cfg `(:pyls (:configurationSources ("flake8")))))
+        ;; TODO: check lsp--cur-workspace here to decide per server / project
+        (lsp--set-configuration lsp-cfg)))
+    :hook (lsp-after-initialize . my/lsp-set-cfg)
+    :config
+    (push 'copany-lsp company-backends))
+
+  (add-hook 'python-mode-hook #'lsp-python-enable)
   (with-eval-after-load 'projectile
+    (lsp-define-stdio-client lsp-python "python" #'projectile-project-root '("pyls"))
     (add-hook 'lsp-before-open-hook #'my/set-projectile-root)))
 
 (use-package macrostep
