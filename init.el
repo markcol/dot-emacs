@@ -181,6 +181,20 @@ and ARGS."
 (dolist (dir (list user-data-directory user-document-directory user-org-directory))
   (make-directory dir t))
 
+;; Needs to be used before importing settings.el
+(use-package no-littering
+  :config
+  (cl-letf (((symbol-function 'etc)
+             (symbol-function #'no-littering-expand-etc-file-name))
+            ((symbol-function 'var)
+             (symbol-function #'no-littering-expand-var-file-name)))
+    (with-no-warnings ; some of these variables haven't been defined yet
+      (setq server-auth-dir                 (etc "server-auth/"))
+      (setq slime-repl-history-file         (var "slime-history.eld"))))
+  (require 'recentf)
+  (add-to-list 'recentf-exclude no-litering-var-directory)
+  (add-to-list 'recentf-exclude no-litering-etc-directory))
+
 (load (expand-file-name "settings" user-emacs-directory) :noerror)
 
 (show-paren-mode 1)
