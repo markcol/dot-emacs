@@ -9,9 +9,6 @@
 
 (defconst emacs-start-time (current-time))
 
-(defconst user-data-directory (expand-file-name "data" user-emacs-directory)
-  "Directory for data files.")
-
 (defconst user-document-directory (expand-file-name "~/Documents")
   "Directory for user documents.")
 
@@ -178,7 +175,7 @@ and ARGS."
 (require 'cl-lib)
 
 ;; Create any missing directories
-(dolist (dir (list user-data-directory user-document-directory user-org-directory))
+(dolist (dir (list user-document-directory user-org-directory))
   (make-directory dir t))
 
 ;; Needs to be used before importing settings.el
@@ -203,7 +200,6 @@ and ARGS."
 
 (setq auto-revert-verbose nil          ; no messages about reverted files
       auto-save-default nil
-      auto-save-list-file-name (expand-file-name "auto-save-list" user-data-directory)
       auto-window-vscroll nil
       browse-url-browser-function #'browse-url-chromium
       confirm-kill-emacs #'y-or-n-p
@@ -1959,8 +1955,7 @@ foo -> &foo[..]"
          ("C-c t C-t"   . treemacs-find-file)
          ("C-c t M-t"   . treemacs-find-tag))
   :init
-  (setq treemacs--persit-file               (expand-file-name "treemacs-cache" user-data-directory)
-        treemacs-change-root-without-asking nil
+  (setq treemacs-change-root-without-asking nil
         treemacs-collapse-dirs              (if (executable-find "python") 3 0)
         treemacs-file-event-delay           5000
         treemacs-follow-after-init          t
