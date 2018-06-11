@@ -509,11 +509,12 @@ different font size based on relative apperance."
   (interactive)
   (when (display-graphic-p)
     (let ((frame  (or (car frame) (selected-frame)))
-          (ptsize (if (>= (display-pixel-height)) 10 12)))
+          (ptsize (if (>= (display-pixel-height) 2000) 10 12))
+          (height (if (>= (display-pixel-height) 2000) 160 100)))
       (set-face-attribute 'default nil :height (* ptsize 10))
       (set-frame-position frame 0 0)
       (set-frame-font (my/font-spec ptsize) nil t)
-      (set-frame-size frame 120 (/ (- (display-pixel-height) 160) (frame-char-height frame)))))
+      (set-frame-size frame 120 (/ (- (display-pixel-height) height) (frame-char-height frame)))))
   (setq-default cursor-type 'box)
   (load-theme my/theme-name t)
   (custom-theme-set-faces
@@ -1609,15 +1610,12 @@ _q_ quit            _i_ insert          _<_ previous
   :hook ((lisp-mode emacs-lisp-mode) . smartparens-strict-mode))
 
 (use-package prescient
+  :straight (:host github :repo "raxod502/prescient.el")
   :config
-  (use-package ivy-prescient
-    :after ivy
-    :config
-    (ivy-prescient-mode +1))
-  (use-package company-prescient
-    :after company
-    :config
-    (company-prescient-mode +1))
+  (require 'ivy-prescient)
+  (ivy-prescient-mode +1)
+  (require 'company-prescient)
+  (company-prescient-mode +1)
   (prescient-persist-mode +1))
 
 (use-package projectile
