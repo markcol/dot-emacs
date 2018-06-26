@@ -1449,6 +1449,10 @@ _q_ quit            _c_ insert          _r_ insert
   :bind (([(meta shift up)] . move-text-up)
          ([(meta shift down)] . move-text-down)))
 
+(use-package nlinum
+  :defer t
+  :hook (prog-mode . nlinum-mode))
+
 (use-package org
   :straight (org-plus-contrib
              :type git :repo "https://code.orgmode.org/bzg/org-mode.git"
@@ -1611,6 +1615,7 @@ _q_ quit            _i_ insert          _<_ previous
 
 (use-package prescient
   :straight (:host github :repo "raxod502/prescient.el")
+  :after ivy company
   :config
   (require 'ivy-prescient)
   (ivy-prescient-mode +1)
