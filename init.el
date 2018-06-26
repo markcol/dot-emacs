@@ -1451,6 +1451,19 @@ _q_ quit            _c_ insert          _r_ insert
 
 (use-package nlinum
   :defer t
+  :init
+  (setq nlinum-format "%5d "
+        nlinum-hightlight-current-line t)
+  :config
+  (set-face-attribute
+   'linum nil
+   :height 0.9
+   :foreground (if (string= (face-foreground 'font-lock-comment-face) "unspecified-fg")
+                   "#8f8f8f"
+                 (face-foreground 'font-lock-comment-face))
+   :background (if (string= (face-background 'default) "unspecified-bg")
+                   "#282828"
+                 (face-background 'default)))
   :hook (prog-mode . nlinum-mode))
 
 (use-package org
