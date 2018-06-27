@@ -2266,6 +2266,10 @@ foo -> &foo[..]"
   :config
   (setq ediff-window-setup-function 'ediff-setup-windows-plain))
 
+(use-package bug-hunter
+  ;; See: https://github.com/Malabarba/elisp-bug-hunter
+  )
+
 ;;;[END_USE_PACKAGE]
 
 ;;;
