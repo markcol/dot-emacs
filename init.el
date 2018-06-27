@@ -246,6 +246,44 @@ and ARGS."
 ;;; Functions
 ;;;
 
+(defun ensure-space (direction)
+  (let* ((char-fn (cond
+                   ((eq direction :before)
+                    #'char-before)
+                   ((eq direction :after)
+                    #'char-after)))
+         (char-result (funcall char-fn)))
+    (unless (and (not (eq char-result nil)) (string-match-p " " (char-to-string char-result)))
+      (insert " "))
+    (when (looking-at " ")
+      (forward-char))))(defun ensure-space (direction)
+  (let* ((char-fn (cond
+                   ((eq direction :before)
+                    #'char-before)
+                   ((eq direction :after)
+                    #'char-after)))
+         (char-result (funcall char-fn)))
+    (unless (and (not (eq char-result nil)) (string-match-p " " (char-to-string char-result)))
+      (insert " "))
+    (when (looking-at " ")
+      (forward-char))))
+
+(defun self-with-space (&optional arg)
+  (interactive "p")
+  (call-interactively #'self-insert-command)
+  (ensure-space :after))
+
+(defun pad-equals (&optional arg)
+  (interactive "p")
+  (if (nth 3 (syntax-ppss))
+      (insert "=")
+    (cond ((looking-back "=[[:space:]]" nil)
+           (delete-char -1))
+          ((looking-back "[^#/|!<>+~]" nil)
+           (ensure-space :before)))
+    (call-interactively #'self-insert-command)
+    (ensure-space :after)))
+
 (defun my/disable-mode-temporarily (mode orig-fun &rest args)
   "Disable MODE before calling ORIG-FUN with ARGS; re-enable afterwards."
   (let ((was-initially-on (when (symbol-value mode)
@@ -941,11 +979,9 @@ called.")
 
 (use-package flycheck
   :config
-  (use-package flycheck-pos-tip
-    :init
-    (setq flycheck-pop-tip-timeout 0))
-  :hook (prog-mode . flycheck-mode)
-  :config
+  (setq flycheck-check-syntax-automatically '(mode-enabled idle-change save)
+        flycheck-idle-change-delay 2)
+  (setq-default flycheck-disabled-checkers '(html-tidy))
   (with-eval-after-load 'hydra
     (defhydra hydra-flycheck (:color pink)
       "
@@ -967,7 +1003,12 @@ _v_ verify setup    _f_ check           _s_ select
       ("l" flycheck-list-errors :color blue)
       ("m" flycheck-manual :color blue)
       ("s" flycheck-select-checker :color blue)
-      ("v" flycheck-verify-setup :color blue))))
+      ("v" flycheck-verify-setup :color blue)))
+  :hook (prog-mode . flycheck-mode))
+
+(use-package flycheck-posframe
+  :after flycheck
+  :hook (flycheck-mode . flycheck-posframe-mode))
 
 (use-package fullframe
   ;; Advise a command so that hte buffer dislays in a full-frame window.
@@ -1326,8 +1367,15 @@ initialization, it can loop until OS handles are exhausted."
               ("C-c e m" . macrostep-expand)))
 
 (use-package magit
-  :bind (("C-c g" . magit-status))
+  :bind ("C-c g" . magit-status)
+  :bind (:map magit-mode-map
+         ("C-c C-a" . magit-just-amend))
   :preface
+  (defun my/magit-just-amend ()
+    (save-window-excursion
+      (shell-command "git --no-pager commit --amend --reuse-message=HEAD")
+      (magit-refresh)))
+
   (defun my/magit-log-edit-config ()
     "Configuration for editing Git log messages."
     (setq fill-column 72)
@@ -1337,7 +1385,9 @@ initialization, it can loop until OS handles are exhausted."
   :hook (magit-log-edit-mode . my/magit-log-edit-config)
   :config
   (setq magit-set-upstream-on-push      t
-        magit-commit-summary-max-length 70)
+        magit-commit-summary-max-length 70
+        magit-completing-read-function 'ivy-completing-read
+        magit-popup-use-prefix-argument 'default)
   ;; no longer need vc-git
   (delete 'Git vc-handled-backends)
 
@@ -1349,23 +1399,83 @@ initialization, it can loop until OS handles are exhausted."
 ^
 ^Magit^             ^Do^
 ^─────^─────────────^──^────────────────
-_q_ quit            _b_ blame
+_q_ quit            _a_ amend
+^^                  _b_ blame
 ^^                  _c_ clone
 ^^                  _i_ init
 ^^                  _s_ status
 ^^                  ^^
 "
       ("q" nil)
+      ("a" my/magit-just-amend)
       ("b" magit-blame)
       ("c" magit-clone)
       ("i" magit-init)
       ("s" magit-status))))
 
+(use-package gist :defer t)
+
+(use-package git-timemachine
+  :commands git-timemachine
+  :config
+  (setq git-timemachine-abbreviation-length 6))
+
+(use-package gitattributes-mode)
+
+(use-package git-commit
+  :commands global-git-commit-mode
+  :preface
+  (defun my/show-trailing-ws()
+    "Show trailing whitespaces."
+    (setq-local show-trailing-whitespace t))
+  :init
+  (setq git-commit-summary-max-length 50
+        fill-column 72)
+  :hook (git-commit-setup . git-commit-turn-on-flyspell)
+  :hook (git-commit-setup . my/show-trailing-ws))
+
+
+(use-package gitconfig-mode
+  :mode (("\\.gitconfig\\'"  . gitconfig-mode)
+	 ("\\.git/config\\'" . gitconfig-mode)
+	 ("\\.gitmodules\\'" . gitconfig-mode)))
+
+(use-package gitignore-mode
+  :mode ("\\.gitignore\\'" . gitignore-mode))
+
+(use-package git-messenger
+  :bind ("C-x v p" . git-messenger:popup-message)
+  :bind (:map git-messenger-map
+         ("m" . git-messenger:copy-message))
+  :config
+  (setq git-messenger:show-detail t
+        git-messenger:use-magit-popup t))
+
+(use-package magithub
+  :disabled
+  :after magit
+  :ensure-system-package hub
+  :config
+  (magithub-feature-autoinject t))
+
+(use-package github-browse-file
+  :preface
+  (defun github-issues (&optional new)
+    (interactive)
+    (let ((url (concat "https://github.com/"
+                       (github-browse-file--relative-url)
+                       "/issues/" new)))
+      (browse-url url)))
+
+  (defun github-new-issue ()
+    (interactive)
+    (github-issues "new")))
+
 (use-package markdown-mode
   :mode (("\\`INSTALL\\'"                 . gfm-mode)
          ("\\`CONTRIBUTORS\\'"            . gfm-mode)
          ("\\`LICENSE\\'"                 . gfm-mode)
-         ("\\`README\\.md\\'"               . gfm-mode)
+         ("\\`README\\.md\\'"             . gfm-mode)
          ("\\.md\\'"                      . markdown-mode))
   :preface
   (defun my/markdown-mode-config ()
@@ -1955,40 +2065,89 @@ foo -> &foo[..]"
     (setq swiper--current-window-start nil)
     (swiper-mc)))
 
-(use-package tide
-  ;; See: https://github.com/ananthakumaran/tide
-  :mode ("\\.[tj]sx\\'" . web-mode)
-  :after (typescript-mode company)
-  :preface
-  (defun my/web-tide-config ()
-    "Setup Tide for web-mode if editing a .tsx or .jsx file."
-    (when (or (string-equal "tsx" (file-name-extension buffer-file-name))
-              (string-equal "jsx" (file-name-extension buffer-file-name)))
-      (my/tide-config)))
+(use-package js2-mode
+  :mode "\\.js\\'"
+  :ensure-system-package (eslint_d . "npm install -g eslint_d")
+  :bind (:map js2-mode-map
+         ("," . self-with-space)
+         ("=" . pad-equals)
+         (":" . self-with-space))
+  :interpreter ("node" . js2-mode)
+  :init
+  (setq js2-mode-show-strict-warnings nil
+        js2-highlight-level           3)
+  :config
+  (defvaralias 'js-switch-indent-offset 'js2-basic-offset)
+  (setenv "NODE_NO_READLINE" "1")
+  (with-eval-after-load 'flycheck
+    (flycheck-mode +1)
+    (setq flycheck-javascript-eslint-executable "eslint_d"))
+  :hook (js2-mode . js2-imenu-extras-mode))
 
-  (defun my/tide-config ()
-    "Tide mode-specific configuration."
-    (interactive)
-    (tide-setup)
-    (tide-hl-identifier-mode +1)
-    (eldoc-mode +1)
-    (setq tide-format-options
-          '(:insertSpaceAfterFunctionKeywordForAnonymousFunctions t
-            :placeOpenBraceOnNewLineForFunctions nil))
+(use-package nodejs-repl
+  :ensure-system-package node
+  :defer t)
+
+(use-package prettier-js
+  :after js2-mode
+  :ensure-system-package (prettier . "npm i -g prettier")
+  :bind (:map js2-mode-map
+         ("s-b" . prettier))
+  :config
+  (setq prettier-args '("--no-semi" "--trailing-comma" "all")))
+
+(use-package web-beautify
+  :ensure-system-package (prettier . "npm i -g js-beautify")
+  :bind ((:map sgml-mode-map
+          ("s-b" . web-beautify-html))
+         (:map css-mode-map
+          ("s-b" . web-beautify-css))))
+
+(use-package rjsx-mode
+  :mode "\\.jsx\\'"
+  :after js2-mode
+  :preface
+  (defun my/rjsx-config ()
+    "Configuration for rjsx files."
     (with-eval-after-load 'flycheck
       (flycheck-mode +1)
-      (flycheck-add-mode 'typescript-tslint 'web-mode)
-      (flycheck-add-mode 'javascript-eslint 'web-mode)
-      (flycheck-add-next-checker 'javascript-eslint 'jsx-tide 'append)
-      (setq flycheck-check-syntax-automatically '(save mode-enabled)))
+      (setq flycheck-check-syntax-automatically '(save mode-enabled idle-change))))
+  :config
+  (bind-key "=" #'pad-equals rjsx-mode-map
+            (not (memq (js2-node-type (js2-node-at-point))
+                       (list rjsx-JSX rjsx-JSX-ATTR rjsx-JSX-IDENT rjsx-JSX-MEMBER))))
+  :hook (rjsx-mode . my/rjsx-config))
+
+(use-package tide
+  ;; See: https://github.com/ananthakumaran/tide
+  :after (typescript-mode company)
+  :bind (:map typescript-mode-map
+         ("C-c C-r" . tide-rename-symbol))
+  :preface
+  (defun my/tide-config ()
+    "Tide mode-specific configuration."
+    (tide-setup)
+    (tide-hl-identifier-mode +1)
+    (setq tide-format-options
+          '(:indentSize                                                  4
+            :tabSize                                                     4
+            :insertSpaceAfterFunctionKeywordForAnonymousFunctions        t
+            :insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces nil
+            :placeOpenBraceOnNewLineForControlBlocks                     nil
+            :placeOpenBraceOnNewLineForFunctions                         nil))
+    (eldoc-mode +1)
+    (with-eval-after-load 'flycheck
+      (flycheck-mode +1)
+      (setq flycheck-check-syntax-automatically '(save mode-enabled idle-change))
+      ;; Add these two lines to support tslint in web-mode
+      ;; https://github.com/ananthakumaran/tide/issues/95
+      (flycheck-add-next-checker 'tsx-tide '(warning . typescript-tslint) 'append)
+      (flycheck-add-mode 'typescript-tslint 'web-mode))
     (with-eval-after-load 'company
       (company-mode +1)
       (setq company-tooltip-align-annotations t)))
-
-  :hook ((before-save     . tide-format-before-save)
-         (js2-mode-hook   . my/tide-config)
-         (typescript-mode . my/tide-config)
-         (web-mode        . my/web-tide-config)))
+  :hook (before-save . tide-format-before-save)
+  :hook ((js2-mode rjsx-mode typescript-mode) . my/tide-config))
 
 (use-package toml-mode
   :mode "\\.toml\\'")
@@ -2035,8 +2194,24 @@ foo -> &foo[..]"
   (treemacs-follow-mode t)
   (treemacs-filewatch-mode t))
 
+(use-package ts-comint
+  :after typescript-mode
+  :bind (:map typescript-mode-map
+         ("C-x C-e" . ts-send-last-sexp)
+         ("C-M-x"   . ts-send-last-sexp-and-go)
+         ("C-c b"   . ts-send-buffer)
+         ("C-c C-b" . ts-send-buffer-and-go)
+         ("C-c l"   . ts-load-file-and-go)))
+
 (use-package typescript-mode
-  :defer t)
+  :mode (("\\.ts\\'"  . typescript-mode)
+         ("\\.tsx\\'" . web-mode))
+  :preface
+  (defun my/web-tsx-config ()
+    "tsx configuration."
+    (when (string-equal "tsx" (file-name-extension buffer-file-name))
+      (my/tide-config)))
+  :hook (web-mode . my/web-tsx-config))
 
 (use-package web-mode
   :mode ("\\.html\\'"
@@ -2049,9 +2224,12 @@ foo -> &foo[..]"
 (use-package which-key
   :defer 5
   :diminish
-  :commands which-key-mode
   :config
-  (which-key-mode))
+  (which-key-mode)
+  (dolist (prefix '("projectile-switch-project" "ember" "magit" "projectile"))
+    (let ((pattern (concat "^" prefix "-\\(.+\\)")))
+      (push `((nil . ,pattern) . (nil . "\\1"))
+            which-key-replacement-alist))))
 
 (use-package whitespace
   :defer t
@@ -2083,6 +2261,10 @@ foo -> &foo[..]"
   :if (memq system-type '(gnu/linux))
   :ensure-system-package zeal
   :defer t)
+
+(use-package ediff
+  :config
+  (setq ediff-window-setup-function 'ediff-setup-windows-plain))
 
 ;;;[END_USE_PACKAGE]
 
