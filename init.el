@@ -1111,15 +1111,6 @@ initialization, it can loop until OS handles are exhausted."
   :no-require t)
 
 (use-package ivy
-  :stright (:host github
-            :repo "raxod502/swiper"
-            :files (:defaults (:exclude
-                               "swiper.el"
-                               "counsel.el"
-                               "ivy-hydra.el")
-                    "doc/ivy-help.org")
-            :branch "fork/1"
-            :upstream (:host github :repo "abo-abo/swiper"))
   :defer 5
   :diminish
   :bind (("C-x b" . ivy-switch-buffer)
