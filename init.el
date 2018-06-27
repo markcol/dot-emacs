@@ -1943,17 +1943,52 @@ foo -> &foo[..]"
 (use-package swiper
   :after ivy
   :bind (:map swiper-map
-              ("M-y" . yank)
-              ("M-%" . swiper-query-replace)
-              ("C-." . swiper-avy)
-              ("M-c" . my/swiper-mc-fixed))
+         ("M-y" . yank)
+         ("M-%" . swiper-query-replace)
+         ("C-." . swiper-avy)
+         ("M-c" . my/swiper-mc-fixed))
   :bind (:map isearch-mode-map
-              ("C-o" . swiper-from-isearch))
+         ("C-o" . swiper-from-isearch))
   :preface
   (defun my/swiper-mc-fixed ()
     (interactive)
     (setq swiper--current-window-start nil)
     (swiper-mc)))
+
+(use-package tide
+  ;; See: https://github.com/ananthakumaran/tide
+  :mode ("\\.[tj]sx\\'" . web-mode)
+  :after (typescript-mode company)
+  :preface
+  (defun my/web-tide-config ()
+    "Setup Tide for web-mode if editing a .tsx or .jsx file."
+    (when (or (string-equal "tsx" (file-name-extension buffer-file-name))
+              (string-equal "jsx" (file-name-extension buffer-file-name)))
+      (my/tide-config)))
+
+  (defun my/tide-config ()
+    "Tide mode-specific configuration."
+    (interactive)
+    (tide-setup)
+    (tide-hl-identifier-mode +1)
+    (eldoc-mode +1)
+    (setq tide-format-options
+          '(:insertSpaceAfterFunctionKeywordForAnonymousFunctions t
+            :placeOpenBraceOnNewLineForFunctions nil))
+    (with-eval-after-load 'flycheck
+      (flycheck-mode +1)
+      (flycheck-add-mode 'typescript-tslint 'web-mode)
+      (flycheck-add-mode 'javascript-eslint 'web-mode)
+      (flycheck-add-next-checker 'javascript-eslint 'jsx-tide 'append)
+      (setq flycheck-check-syntax-automatically '(save mode-enabled)))
+    (with-eval-after-load 'company
+      (company-mode +1)
+      (setq company-tooltip-align-annotations t)))
+
+  :hook ((before-save     . tide-format-before-save)
+         (js2-mode-hook   . my/tide-config)
+         (typescript-mode . my/tide-config)
+         (web-mode        . my/web-tide-config)))
 
 (use-package toml-mode
   :mode "\\.toml\\'")
@@ -1999,6 +2034,9 @@ foo -> &foo[..]"
 
   (treemacs-follow-mode t)
   (treemacs-filewatch-mode t))
+
+(use-package typescript-mode
+  :defer t)
 
 (use-package web-mode
   :mode ("\\.html\\'"
