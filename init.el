@@ -1444,7 +1444,7 @@ _q_ quit            _c_ insert          _r_ insert
   :defer t
   :init
   (setq nlinum-format "%5d "
-        nlinum-hightlight-current-line t)
+        nlinum-highlight-current-line t)
   :config
   ;; Changing fonts can leave nlinum line numbers in their original size; this
   ;; forces them to resize.

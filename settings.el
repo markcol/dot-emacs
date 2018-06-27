@@ -64,4 +64,4 @@
  ;; If there is more than one, they won't work right.
  '(default ((((class color) (min-colors 89)) (:foreground "#eaeaea" :background "#181a26"))))
  '(linum ((t (:foreground "#8f8f8f" :height 0.8))))
- '(nlinum-current-line ((t (:inherit linum :weight bold)))))
+ '(nlinum-current-line ((t (:inherit linum :foreground "#daa520" :weight bold)))))
