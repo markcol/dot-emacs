@@ -1440,21 +1440,28 @@ _q_ quit            _c_ insert          _r_ insert
   :bind (([(meta shift up)] . move-text-up)
          ([(meta shift down)] . move-text-down)))
 
-(use-package nlinum
+(use-package nlinum-hl
   :defer t
   :init
   (setq nlinum-format "%5d "
         nlinum-hightlight-current-line t)
   :config
-  (set-face-attribute
-   'linum nil
-   :height 0.9
-   :foreground (if (string= (face-foreground 'font-lock-comment-face) "unspecified-fg")
-                   "#8f8f8f"
-                 (face-foreground 'font-lock-comment-face))
-   :background (if (string= (face-background 'default) "unspecified-bg")
-                   "#282828"
-                 (face-background 'default)))
+  ;; Changing fonts can leave nlinum line numbers in their original size; this
+  ;; forces them to resize.
+  (advice-add #'set-frame-font :after #'nlinum-hl-flush-all-windows)
+
+  ;; Fix certain major modes that have known issues with line number
+  ;; display. See: https://github.com/hlissner/emacs-nlinum-hl
+  (with-eval-after-load 'markdown
+    ;; With `markdown-fontify-code-blocks-natively' enabled in `markdown-mode',
+    ;; line numbers tend to vanish next to code blocks.
+    (advice-add #'markdown-fontify-code-block-natively
+                :after #'nlinum-hl-do-markdown-fontify-region))
+
+  (with-eval-after-load 'web-mode
+    ;; When using `web-mode's code-folding an entire range of line numbers will
+    ;; vanish in the affected area.
+    (advice-add #'web-mode-fold-or-unfold :after #'nlinum-hl-do-generic-flush))
   :hook (prog-mode . nlinum-mode))
 
 (use-package org
