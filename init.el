@@ -214,7 +214,7 @@ and ARGS."
       scroll-conservatively 100000
       scroll-margin 0
       scroll-preserve-screen-position 1
-      ;; Sentances can end with a '. ', rather than '.  '
+      ;; Sentences can end with a '. ', rather than '.  '
       sentence-end-double-space nil
       tab-width 2
       c-basic-offset 4)
@@ -252,6 +252,7 @@ and ARGS."
 ;;;
 
 (defun ensure-space (direction)
+  "Ensure that there is a space in the given DIRECTION."
   (let* ((char-fn (cond
                    ((eq direction :before)
                     #'char-before)
@@ -273,13 +274,15 @@ and ARGS."
     (when (looking-at " ")
       (forward-char))))
 
-(defun self-with-space (&optional arg)
-  (interactive "p")
+(defun self-with-space ()
+  "Insert character and add a space."
+  (interactive)
   (call-interactively #'self-insert-command)
   (ensure-space :after))
 
-(defun pad-equals (&optional arg)
-  (interactive "p")
+(defun pad-equals ()
+  "Insert character and pad with spaces."
+  (interactive)
   (if (nth 3 (syntax-ppss))
       (insert "=")
     (cond ((looking-back "=[[:space:]]" nil)
@@ -455,7 +458,8 @@ errors)."
             (setq last-point (point))))
         (setq list (sort list (lambda (a b) (string< (car a) (car b)))))
         (delete-region (point-min) (point))
-        (insert (mapconcat 'cdr list "\n"))))))
+        (insert (mapconcat (lambda (s) (string-trim (cdr s))) list "\n\n"))
+        (insert "\n")))))
 
 ;;;
 ;;; Key Bindings
@@ -606,8 +610,8 @@ different font size based on relative apperance."
   :bind (([remap query-replace] . anzu-query-replace)
          ([remap query-replace-regexp] . anzu-query-replace-regexp))
   :bind (:map isearch-mode-map
-	      ([remap isearch-query-replace]  . anzu-isearch-query-replace)
-	      ([remap isearch-query-replace-regexp]  . anzu-isearch-query-replace-regexp))
+         ([remap isearch-query-replace]  . anzu-isearch-query-replace)
+         ([remap isearch-query-replace-regexp]  . anzu-isearch-query-replace-regexp))
   :init
   (setq anzu-mode-lighter ""
 	anzu-deactivate-region t
@@ -686,6 +690,14 @@ Used as hook function for `kill-emacs-hook', because
   :hook ((kill-buffer after-save vc-before-checkin) . bm-buffer-save)
   :hook (kill-emacs . my/bm-save-all-buffers))
 
+(use-package bug-hunter
+  ;; See: https://github.com/Malabarba/elisp-bug-hunter
+  )
+
+(use-package cargo
+  :after (rust)
+  :hook (rust-mode . cargo-minor-mode))
+
 (use-package company
   :bind (:map company-active-map
          ("C-n" . company-select-next-or-abort)
@@ -697,6 +709,24 @@ Used as hook function for `kill-emacs-hook', because
   (setq company-tooltip-limit 20
         company-idle-delay .3
         company-echo-delay 0))
+
+(use-package company-jedi
+  :if (not (eq system-type 'windows-nt))
+  :after (python-mode company jedi-core)
+  :defer t
+  :config
+  (add-to-list 'company-backends '(company-jedi company-files)))
+
+(use-package company-lsp
+  :after (company lsp-mode)
+  :preface
+  (defun my/lsp-set-cfg ()
+    (let ((lsp-cfg `(:pyls (:configurationSources ("flake8")))))
+      ;; TODO: check lsp--cur-workspace here to decide per server / project
+      (lsp--set-configuration lsp-cfg)))
+  :hook (lsp-after-initialize . my/lsp-set-cfg)
+  :config
+  (push 'copany-lsp company-backends))
 
 (use-package counsel
   :after swiper
@@ -778,6 +808,10 @@ Used as hook function for `kill-emacs-hook', because
   ;;                         (DBD::mysql        . "cpan install DBD::mysql"))
   :defer)
 
+(use-package ediff
+  :config
+  (setq ediff-window-setup-function 'ediff-setup-windows-plain))
+
 (use-package edit-server
   :if window-system
   :defer 5
@@ -819,6 +853,65 @@ Used as hook function for `kill-emacs-hook', because
   :straight f
   :diminish
   :hook ((c-mode-common emacs-lisp-mode) . eldoc-mode))
+
+(use-package elint
+  :after (emacs-lisp-mode)
+  :commands (elint-initialize elint-current-buffer)
+  :bind ("C-c e E" . my/elint-current-buffer)
+  :preface
+  (defun my/elint-current-buffer ()
+    (interactive)
+    (elint-initialize)
+    (elint-current-buffer))
+  :config
+  (add-to-list 'elint-standard-variables 'current-prefix-arg)
+  (add-to-list 'elint-standard-variables 'command-line-args-left)
+  (add-to-list 'elint-standard-variables 'buffer-file-coding-system)
+  (add-to-list 'elint-standard-variables 'emacs-major-version)
+  (add-to-list 'elint-standard-variables 'window-system))
+
+(use-package elisp-depend
+  :after (emacs-lisp-mode)
+  :commands elisp-depend-print-dependencies)
+
+(use-package elisp-docstring-mode
+  :after (emacs-lisp-mode)
+  :commands elisp-docstring-mode)
+
+(use-package elisp-slime-nav
+  :after (emacs-lisp-mode)
+  :diminish
+  :commands (elisp-slime-nav-mode
+             elisp-slime-nav-find-elisp-thing-at-point))
+
+(use-package elmacro
+  :after (emacs-lisp-mode)
+  :bind (("C-c m e" . elmacro-mode)
+         ("C-x C-)" . elmacro-show-last-macro)))
+
+(use-package elpy
+  :if (not (eq system-type 'windows-nt))
+  :after (python-mode)
+  :bind (:map elpy-mode-map
+         ("C-c C-k" . python-shell-send-buffer)
+         ("C-M-x"   . python-shell-send-defun))
+  :init
+  (when system-packages-package-manager
+    (system-packages-ensure "pip")
+    (system)
+    (system-packages-ensure "autopep8" "pip install autopep8")
+    (system-packages-ensure "yapf" "pip install yapf"))
+  :config
+  (elpy-enable)
+  (with-eval-after-load 'flycheck
+    (remove-hook 'elpy-modules #'elpy-module-flymake)
+    (remove-hook 'elpy-modules #'elpy-module-yasnippet)
+    (remove-hook 'elpy-mode-hook #'elpy-module-highlight-indentation))
+  (with-eval-after-load 'rope
+    (setq elpy-rpc-backend "rope"))
+  (with-eval-after-load 'jedi-core
+    (setq elpy-rpc-backend "jedi"))
+  :hook (python-mode . elpy-mode))
 
 (use-package emacs-lisp-mode
   :straight f
@@ -912,6 +1005,10 @@ Lisp function does not specify a special indentation."
              :host github :repo "SavchenkoValeriy/emacs-powerthesaurus")
   :bind ("C-c C-t" . powerthesuarus-lookup-word))
 
+(use-package eshell
+  :config
+  (require 'em-tramp))
+
 (use-package esup
   :init
   (advice-add 'esup :around #'my/wrap-in-straight-transaction))
@@ -938,6 +1035,10 @@ Lisp function does not specify a special indentation."
   :defer t
   :commands er/expand-region
   :bind ("C-=" . er/expand-region))
+
+(use-package ffap
+  :defer t
+  :bind ("C-c v" . ffap))
 
 (use-package fill-column-indicator
   :preface
@@ -996,10 +1097,6 @@ called.")
   :hook (htmlize-after  . my/htmlize-after-hook-fn)
   :hook (prog-mode . turn-on-fci-mode))
 
-(use-package ffap
-  :defer t
-  :bind ("C-c v" . ffap))
-
 (use-package flycheck
   :config
   (setq flycheck-check-syntax-automatically '(mode-enabled idle-change save)
@@ -1029,21 +1126,31 @@ _v_ verify setup    _f_ check           _s_ select
       ("v" flycheck-verify-setup :color blue)))
   :hook (prog-mode . flycheck-mode))
 
-(use-package flycheck-posframe
+(use-package flycheck-pos-tip
   :after (flycheck)
   :config
-  (flycheck-posframe-configure-pretty-defaults)
-  (set-face-attribute 'flycheck-posframe-error-face nil :inherit 'error)
-  ;; mark warnings with UNICODE WARNING symbol
-  (setq flycheck-posframe-warning-prefix "\u26a0 ")
-  :hook (flycheck-mode . flycheck-posframe-mode))
+  (setq flycheck-pos-tip-timeout 7
+        flycheck-display-errors-delay 0.5
+        flycheck-display-error-messages #'flycheck-pos-tip-error-messages)
+  (flycheck-pos-tip-mode))
 
 (use-package fullframe
   ;; Advise a command so that the buffer dislays in a full-frame window.
   :defer t)
 
-(use-package gitignore-mode
-  :defer t)
+(use-package gist :defer t)
+
+(use-package git-commit
+  :commands global-git-commit-mode
+  :preface
+  (defun my/show-trailing-ws()
+    "Show trailing whitespaces."
+    (setq-local show-trailing-whitespace t))
+  :init
+  (setq git-commit-summary-max-length 50
+        fill-column 72)
+  :hook (git-commit-setup . git-commit-turn-on-flyspell)
+  :hook (git-commit-setup . my/show-trailing-ws))
 
 (use-package git-gutter-fringe
   :diminish git-gutter-mode
@@ -1062,14 +1169,53 @@ initialization, it can loop until OS handles are exhausted."
     ;; Refresh git-gutter buffers after Magit status changes
     (add-hook 'magit-post-refresh-hook #'my/git-gutter-refresh-all)))
 
+(use-package git-messenger
+  :bind ("C-x v p" . git-messenger:popup-message)
+  :bind (:map git-messenger-map
+         ("m" . git-messenger:copy-message))
+  :config
+  (setq git-messenger:show-detail t
+        git-messenger:use-magit-popup t))
+
 (use-package git-timemachine
   :bind ("C-c x" . git-timemachine-toggle))
+
+(use-package git-timemachine
+  :commands git-timemachine
+  :config
+  (setq git-timemachine-abbreviation-length 6))
+
+(use-package gitattributes-mode)
+
+(use-package gitconfig-mode
+  :mode (("\\.gitconfig\\'"  . gitconfig-mode)
+	 ("\\.git/config\\'" . gitconfig-mode)
+	 ("\\.gitmodules\\'" . gitconfig-mode)))
+
+(use-package github-browse-file
+  :preface
+  (defun github-issues (&optional new)
+    (interactive)
+    (let ((url (concat "https://github.com/"
+                       (github-browse-file--relative-url)
+                       "/issues/" new)))
+      (browse-url url)))
+
+  (defun github-new-issue ()
+    (interactive)
+    (github-issues "new")))
+
+(use-package gitignore-mode
+  :defer t)
+
+(use-package gitignore-mode
+  :mode ("\\.gitignore\\'" . gitignore-mode))
 
 (use-package google-this
   :bind-keymap ("C-c /" . google-this-mode-submap)
   :bind* ("M-SPC" . google-this-search)
   :bind (:map google-this-mode-map
-              ("/" . google-this-search)))
+         ("/" . google-this-search)))
 
 (use-package goto-chg
   :bind (("C-c b ," . goto-last-change)
@@ -1238,14 +1384,14 @@ initialization, it can loop until OS handles are exhausted."
     (interactive)
     (let (amend)
       (with-ivy-window
-       ;;move to last word boundary
-       (re-search-backward "\\b")
-       (let ((pt (point))
-             (le (line-end-position)))
-         (forward-word 1)
-         (if (> (point) le)
-             (goto-char pt)
-           (setq amend (buffer-substring-no-properties pt (point))))))
+        ;;move to last word boundary
+        (re-search-backward "\\b")
+        (let ((pt (point))
+              (le (line-end-position)))
+          (forward-word 1)
+          (if (> (point) le)
+              (goto-char pt)
+            (setq amend (buffer-substring-no-properties pt (point))))))
       (when amend
         (insert (replace-regexp-in-string "  +" " " amend)))))
 
@@ -1265,6 +1411,10 @@ initialization, it can loop until OS handles are exhausted."
   (with-eval-after-load 'flx
     (setq ivy-re-builders-alist '((t . ivy--regex-fuzzy)))))
 
+(use-package ivy-hydra
+  :demand t
+  :after (ivy hydra))
+
 (use-package ivy-pass
   :demand t
   :after (ivy)
@@ -1280,9 +1430,37 @@ initialization, it can loop until OS handles are exhausted."
         ivy-rich-switch-buffer-align-virtual-buffer t
         ivy-rich-path-style 'abbrev))
 
-(use-package ivy-hydra
-  :demand t
-  :after (ivy hydra))
+(use-package jedi-core
+  :if (not (eq system-type 'windows-nt))
+  :defer t
+  :after (python)
+  :init
+  (when system-packages-package-manager
+    (system-packages-ensure "pip")
+    (system-packages-ensure "jedi" "pip install jedi"))
+  :config
+  :hook (python-mode . jedi-mode))
+
+(use-package js2-mode
+  :mode "\\.js\\'"
+  :bind (:map js2-mode-map
+         ("," . self-with-space)
+         ("=" . pad-equals)
+         (":" . self-with-space))
+  :interpreter ("node" . js2-mode)
+  :init
+  (when system-packages-package-manager
+    (system-packages-ensure "eslint_d" "npm install -g eslint_d"))
+
+  (setq js2-mode-show-strict-warnings nil
+        js2-highlight-level           3)
+  :config
+  (defvaralias 'js-switch-indent-offset 'js2-basic-offset)
+  (setenv "NODE_NO_READLINE" "1")
+  (with-eval-after-load 'flycheck
+    (flycheck-mode +1)
+    (setq flycheck-javascript-eslint-executable "eslint_d"))
+  :hook (js2-mode . js2-imenu-extras-mode))
 
 (use-package json-mode
   :mode "\\.json\\'")
@@ -1323,41 +1501,6 @@ initialization, it can loop until OS handles are exhausted."
         (2 font-lock-function-name-face
            nil t))))))
 
-(use-package elint
-  :after (emacs-lisp-mode)
-  :commands (elint-initialize elint-current-buffer)
-  :bind ("C-c e E" . my/elint-current-buffer)
-  :preface
-  (defun my/elint-current-buffer ()
-    (interactive)
-    (elint-initialize)
-    (elint-current-buffer))
-  :config
-  (add-to-list 'elint-standard-variables 'current-prefix-arg)
-  (add-to-list 'elint-standard-variables 'command-line-args-left)
-  (add-to-list 'elint-standard-variables 'buffer-file-coding-system)
-  (add-to-list 'elint-standard-variables 'emacs-major-version)
-  (add-to-list 'elint-standard-variables 'window-system))
-
-(use-package elisp-depend
-  :after (emacs-lisp-mode)
-  :commands elisp-depend-print-dependencies)
-
-(use-package elisp-docstring-mode
-  :after (emacs-lisp-mode)
-  :commands elisp-docstring-mode)
-
-(use-package elisp-slime-nav
-  :after (emacs-lisp-mode)
-  :diminish
-  :commands (elisp-slime-nav-mode
-             elisp-slime-nav-find-elisp-thing-at-point))
-
-(use-package elmacro
-  :after (emacs-lisp-mode)
-  :bind (("C-c m e" . elmacro-mode)
-         ("C-x C-)" . elmacro-show-last-macro)))
-
 (use-package lsp-mode
   :preface
   (defun my/set-projectile-root ()
@@ -1367,6 +1510,15 @@ initialization, it can loop until OS handles are exhausted."
   :config
   (with-eval-after-load 'projectile
     (add-hook 'lsp-before-open-hook #'my/set-projectile-root)))
+
+(use-package lsp-rust
+  :after (lsp-mode lsp-ui rust)
+  :if (executable-find "rustup")
+  :init
+  (when system-packages-package-manager
+    (system-packages-ensure "rls" "rustup component add rls-preview rust-analysis rust-src"))
+  (setq lsp-rust-rls-command '("rustup" "run" "nightly" "rls"))
+  :hook (rust-mode . lsp-rust-enable))
 
 (use-package lsp-ui
   :after (lsp-mode)
@@ -1379,17 +1531,6 @@ initialization, it can loop until OS handles are exhausted."
     (add-hook 'lsp-after-open-hook #'lsp-enable-imenu))
   (setq lsp-ui-sideline-ignore-duplicate t)
   :hook (lsp-mode . lsp-ui-mode))
-
-(use-package company-lsp
-  :after (company lsp-mode)
-  :preface
-  (defun my/lsp-set-cfg ()
-    (let ((lsp-cfg `(:pyls (:configurationSources ("flake8")))))
-      ;; TODO: check lsp--cur-workspace here to decide per server / project
-      (lsp--set-configuration lsp-cfg)))
-  :hook (lsp-after-initialize . my/lsp-set-cfg)
-  :config
-  (push 'copany-lsp company-backends))
 
 (use-package macrostep
   :after (emacs-lisp-mode)
@@ -1443,63 +1584,14 @@ _q_ quit            _a_ amend
       ("i" magit-init)
       ("s" magit-status))))
 
-(use-package gist :defer t)
-
-(use-package git-timemachine
-  :commands git-timemachine
-  :config
-  (setq git-timemachine-abbreviation-length 6))
-
-(use-package gitattributes-mode)
-
-(use-package git-commit
-  :commands global-git-commit-mode
-  :preface
-  (defun my/show-trailing-ws()
-    "Show trailing whitespaces."
-    (setq-local show-trailing-whitespace t))
-  :init
-  (setq git-commit-summary-max-length 50
-        fill-column 72)
-  :hook (git-commit-setup . git-commit-turn-on-flyspell)
-  :hook (git-commit-setup . my/show-trailing-ws))
-
-
-(use-package gitconfig-mode
-  :mode (("\\.gitconfig\\'"  . gitconfig-mode)
-	 ("\\.git/config\\'" . gitconfig-mode)
-	 ("\\.gitmodules\\'" . gitconfig-mode)))
-
-(use-package gitignore-mode
-  :mode ("\\.gitignore\\'" . gitignore-mode))
-
-(use-package git-messenger
-  :bind ("C-x v p" . git-messenger:popup-message)
-  :bind (:map git-messenger-map
-         ("m" . git-messenger:copy-message))
-  :config
-  (setq git-messenger:show-detail t
-        git-messenger:use-magit-popup t))
-
 (use-package magithub
   :disabled
   :after magit
-  :ensure-system-package hub
+  :init
+  (when system-packages-package-manager
+    (system-packages-ensure "hub"))
   :config
   (magithub-feature-autoinject t))
-
-(use-package github-browse-file
-  :preface
-  (defun github-issues (&optional new)
-    (interactive)
-    (let ((url (concat "https://github.com/"
-                       (github-browse-file--relative-url)
-                       "/issues/" new)))
-      (browse-url url)))
-
-  (defun github-new-issue ()
-    (interactive)
-    (github-issues "new")))
 
 (use-package markdown-mode
   :mode (("\\`INSTALL\\'"                 . gfm-mode)
@@ -1605,6 +1697,12 @@ _q_ quit            _c_ insert          _r_ insert
     (advice-add #'web-mode-fold-or-unfold :after #'nlinum-hl-do-generic-flush))
   :hook (prog-mode . nlinum-mode))
 
+(use-package nodejs-repl
+  :defer t
+  :init
+  (when system-packages-package-manager
+    (system-packages-ensure "node"))  )
+
 (use-package org
   :straight (org-plus-contrib
              :type git :repo "https://code.orgmode.org/bzg/org-mode.git"
@@ -1645,6 +1743,12 @@ _q_ quit            _i_ insert          _<_ previous
   (setq org-todo-keywords
         '("TODO" "|" "CANCELLED" "DONE")))
 
+(use-package org-agenda-ng
+  ;; org-agenda-ng is a requirement for org-sidebar, but
+  ;; not on MELPA.
+  :straight (org-agenda-ng :host github :repo "alphapapa/org-agenda-ng")
+  :after (org))
+
 (use-package org-babel
   :disabled
   ;; See: http://cachestocaches.com/2018/6/org-literate-programming/
@@ -1663,24 +1767,6 @@ _q_ quit            _i_ insert          _<_ previous
      (sh . t)
      (shell . t)
      (rust . t))))
-
-(use-package org-ql
-  ;; org-ql is a requirement org-sidebar, but it is not on MELPA.
-  :straight (org-ql :host github :repo "alphapapa/org-agenda-ng")
-  :after (org))
-
-(use-package org-agenda-ng
-  ;; org-agenda-ng is a requirement for org-sidebar, but
-  ;; not on MELPA.
-  :straight (org-agenda-ng :host github :repo "alphapapa/org-agenda-ng")
-  :after (org))
-
-(use-package org-sidebar
-  :after (org)
-  :requires (org-agenda-ng org-ql)
-  :straight (org-sidebar :host github :repo "alphapapa/org-sidebar")
-  :commands (org-sidebar)
-  :bind ("C-c o s" . org-sidebar))
 
 (use-package org-journal
   :after (org)
@@ -1704,8 +1790,17 @@ _q_ quit            _i_ insert          _<_ previous
     (interactive)
     (find-file (get-journal-file-yesterday))))
 
-(use-package toc-org
+(use-package org-ql
+  ;; org-ql is a requirement org-sidebar, but it is not on MELPA.
+  :straight (org-ql :host github :repo "alphapapa/org-agenda-ng")
   :after (org))
+
+(use-package org-sidebar
+  :after (org)
+  :requires (org-agenda-ng org-ql)
+  :straight (org-sidebar :host github :repo "alphapapa/org-sidebar")
+  :commands (org-sidebar)
+  :bind ("C-c o s" . org-sidebar))
 
 (use-package paredit
   :diminish
@@ -1728,62 +1823,14 @@ _q_ quit            _i_ insert          _<_ previous
     :load-path "lisp"
     :after (paredit)))
 
-(use-package smartparens
-  :disabled
-  :bind (:map smartparens-mode-map
-         ;; Movement and navigation
-         ("C-M-f"       . sp-forward-sexp)
-         ("C-M-b"       . sp-backward-sexp)
-         ("C-M-u"       . sp-backward-up-sexp)
-         ("C-M-d"       . sp-down-sexp)
-         ("C-M-p"       . sp-backward-down-sexp)
-         ("C-M-n"       . sp-up-sexp)
-         ;; Deleting and killing
-         ("C-M-k"       . sp-kill-sexp)
-         ("C-M-w"       . sp-copy-sexp)
-         ;; Depth changing
-         ("M-s"         . sp-splice-sexp)
-         ("M-<up>"      . sp-splice-sexp-killing-backward)
-         ("M-<down>"    . sp-splice-sexp-killing-forward)
-         ("M-r"         . sp-splice-sexp-killing-around)
-         ("M-?"         . sp-convolute-sexp)
-         ;; Barfage & Slurpage
-         ("C-)"         . sp-forward-slurp-sexp)
-         ("C-<right>"   . sp-forward-barf-sexp)
-         ("C-}"         . sp-backward-up-sexp)
-         ("C-<left>"    . sp-forward-barf-sexp)
-         ("C-("         . sp-backward-slurp-sexp)
-         ("C-M-<left>"  . sp-backward-slurp-sexp)
-         ("C-{"         . sp-backward-barf-sexp)
-         ("C-M-<right>" . sp-backward-barf-sexp)
-         ("M-S"         . sp-split-sexp)
-         ("M-J"         . sp-join-sexp)
-         ("C-M-t"       . sp-transpose-sexp))
-  :bind (:map smartparens-strict-mode-map
-         ("M-q"         . sp-indent-defun)
-         ("C-j"         . sp-newline))
+(use-package password-cache
   :config
-  (require 'smartparens-config)
-
-  (setq smartparens-strict-mode t
-        sp-autoskip-closing-pair 'always
-        sp-base-key-bindings 'paredit
-        sp-hybrid-kill-entire-symbol nil)
-
-  (sp-local-pair 'emacs-lisp-mode "'" nil :when '(sp-in-string-p))
-  (sp-local-pair 'emacs-lisp-mode "`" nil :when '(sp-in-string-p))
-  (sp-with-modes '(html-mode sgml-mode web-mode)
-                 (sp-local-pair "<" ">"))
-  (sp-with-modes sp--lisp-modes
-                 (sp-local-pair "(" nil :bind "C-("))
-  (sp-with-modes '(markdown-mode gfm-mode rst-mode)
-                 (sp-local-pair "*" "*" :bind "C-*")
-                 (sp-local-tag "2" "**" "**")
-                 (sp-local-tag "s" "```scheme" "```")
-                 (sp-local-tag "<"  "<_>" "</_>" :transform 'sp-match-sgml-tags))
-  (smartparens-global-mode +1)
-  (show-smartparens-global-mode +1)
-  :hook ((lisp-mode emacs-lisp-mode) . smartparens-strict-mode))
+  ;; package manager transactions such as installing and removing
+  ;; packages are run via the `sudo` command in Eshell. If you’d like
+  ;; to cache the password for, say, an hour, you can configure Eshell
+  ;; to use its own version of sudo via TRAMP:
+  (setq password-cache t
+        password-cache-expiry 3600))
 
 (use-package prescient
   :straight (:host github :repo "raxod502/prescient.el")
@@ -1794,6 +1841,16 @@ _q_ quit            _i_ insert          _<_ previous
   (require 'company-prescient)
   (company-prescient-mode +1)
   (prescient-persist-mode +1))
+
+(use-package prettier-js
+  :after js2-mode
+  :bind (:map js2-mode-map
+         ("s-b" . prettier))
+  :init
+  (when system-packages-package-manager
+    (system-packages-ensure "prettier" "npm i -g prettier"))
+
+  (setq prettier-args '("--no-semi" "--trailing-comma" "all")))
 
 (use-package projectile
   :after ivy
@@ -1891,47 +1948,31 @@ _i_ reset cache     _K_ kill all        _D_ root            _R_ regexp replace
       (lsp-define-stdio-client lsp-python "python" #'projectile-project-root '("pyls"))))
   (my/add-zeal-or-dash-docs python-mode "python"))
 
-(use-package elpy
-  :if (not (eq system-type 'windows-nt))
-  :after (python-mode)
-  :bind (:map elpy-mode-map
-         ("C-c C-k" . python-shell-send-buffer)
-         ("C-M-x"   . python-shell-send-defun))
+(use-package racer
+  :disabled
+  :after (rust)
+  :unless (featurep 'lsp-rust)
   :init
   (when system-packages-package-manager
-    (system-packages-ensure "pip")
-    (system-packages-ensure "flake8" "pip install flake8")
-    (system-packages-ensure "autopep8" "pip install autopep8")
-    (system-packages-ensure "yapf" "pip install yapf"))
-  :config
-  (elpy-enable)
-  (with-eval-after-load 'flycheck
-    (remove-hook 'elpy-modules #'elpy-module-flymake)
-    (remove-hook 'elpy-modules #'elpy-module-yasnippet)
-    (remove-hook 'elpy-mode-hook #'elpy-module-highlight-indentation))
-  (with-eval-after-load 'rope
-    (setq elpy-rpc-backend "rope"))
-  (with-eval-after-load 'jedi-core
-    (setq elpy-rpc-backend "jedi"))
-  :hook (python-mode . elpy-mode))
+    (system-packages-ensure "racer" "cargo install racer"))
 
-(use-package jedi-core
-  :if (not (eq system-type 'windows-nt))
-  :ensure-system-package (jedi . "pip install jedi")
-  :defer t
-  :after (python)
+  ;; Tell racer to use the rustup managed rust-src
+  (setq racer-cmd              (executable-find "racer")
+        rust-default-toolchain (car (s-split " " (-first
+                                                  (lambda (line) (s-match "default" line))
+                                                  (s-lines (shell-command-to-string "rustup toolchain list")))))
+        rust-src-path          (concat (getenv "HOME") "/.multirust/toolchains/"
+                                       rust-default-toolchain "/lib/rustlib/src/rust/src")
+        rust-bin-path          (concat (getenv "HOME") "/.multirust/toolchains/"
+                                       rust-default-toolchain "/bin")
+        racer-rust-src-path    rust-src-path)
+  (setenv "RUST_SRC_PATH" rust-src-path)
+  (setenv "RUSTC" rust-bin-path)
   :config
-  :hook (python-mode . jedi-mode))
-
-(use-package company-jedi
-  :if (not (eq system-type 'windows-nt))
-  :after (python-mode company jedi-core)
-  :defer t
-  :config
-  (add-to-list 'company-backends '(company-jedi company-files)))
-
-(use-package rainbow-mode
-  :diminish)
+  (with-eval-after-load 'company
+    (add-to-list 'company-dabbrev-code-modes 'rust-mode)
+    (add-hook 'racer-mode-hook #'company-mode))
+  :hook (rust-mode . (racer-mode eldoc-mode)))
 
 (use-package rainbow-delimiters
   ;; rainbow-delimiters is a "rainbow parentheses"-like mode which
@@ -1941,6 +1982,9 @@ _i_ reset cache     _K_ kill all        _D_ root            _R_ regexp replace
   ;; delimiters, orient yourself in the code, and tell which
   ;; statements are at a given depth.
   :hook (prog-mode . rainbow-delimiters-mode))
+
+(use-package rainbow-mode
+  :diminish)
 
 (use-package recentf
   :defer 10
@@ -1985,10 +2029,24 @@ _i_ reset cache     _K_ kill all        _D_ root            _R_ regexp replace
                    (with-current-buffer "*rg*"
                      (fullframe/set-current-buffer-window-config wconf)))))))
 
+(use-package rjsx-mode
+  :mode "\\.jsx\\'"
+  :after js2-mode
+  :preface
+  (defun my/rjsx-config ()
+    "Configuration for rjsx files."
+    (with-eval-after-load 'flycheck
+      (flycheck-mode +1)
+      (setq flycheck-check-syntax-automatically '(save mode-enabled idle-change))))
+  :config
+  (bind-key "=" #'pad-equals rjsx-mode-map
+            (not (memq (js2-node-type (js2-node-at-point))
+                       (list rjsx-JSX rjsx-JSX-ATTR rjsx-JSX-IDENT rjsx-JSX-MEMBER))))
+  :hook (rjsx-mode . my/rjsx-config))
+
 (use-package rust-mode
   :mode "\\.rs\\'"
   :if (executable-find "rust")
-  :ensure-system-package ((rustfmt . "rustup component add rustfmt-preview"))
   :bind (:map rust-mode-map
          ("C-c C-p" . my/rust-toggle-visbility )
          ("C-c C-m" . my/rust-toggle-mutability)
@@ -2043,44 +2101,11 @@ foo -> &foo[..]"
               ("->" . (?· (Br . Bl) ?→)))
       (push it prettify-symbols-alist)))
   :hook (rust-mode . my/rust-mode-config)
+  :init
+  (when system-packages-package-manager
+    (system-packages-ensure "rustfmt" "rustup component add rustfmt-preview"))
   :config
   (my/add-zeal-or-dash-docs rust-mode "rust"))
-
-(use-package cargo
-  :after (rust)
-  :hook (rust-mode . cargo-minor-mode))
-
-(use-package lsp-rust
-  :after (lsp-mode lsp-ui rust)
-  :if (executable-find "rustup")
-  :ensure-system-package (rls . "rustup component add rls-preview rust-analysis rust-src")
-  :init
-  (setq lsp-rust-rls-command '("rustup" "run" "nightly" "rls"))
-  :hook (rust-mode . lsp-rust-enable))
-
-(use-package racer
-  :disabled
-  :after (rust)
-  :unless (featurep 'lsp-rust)
-  :ensure-system-package (racer . "cargo install racer")
-  :init
-  ;; Tell racer to use the rustup managed rust-src
-  (setq racer-cmd              (executable-find "racer")
-        rust-default-toolchain (car (s-split " " (-first
-                                                  (lambda (line) (s-match "default" line))
-                                                  (s-lines (shell-command-to-string "rustup toolchain list")))))
-        rust-src-path          (concat (getenv "HOME") "/.multirust/toolchains/"
-                                       rust-default-toolchain "/lib/rustlib/src/rust/src")
-        rust-bin-path          (concat (getenv "HOME") "/.multirust/toolchains/"
-                                       rust-default-toolchain "/bin")
-        racer-rust-src-path    rust-src-path)
-  (setenv "RUST_SRC_PATH" rust-src-path)
-  (setenv "RUSTC" rust-bin-path)
-  :config
-  (with-eval-after-load 'company
-    (add-to-list 'company-dabbrev-code-modes 'rust-mode)
-    (add-hook 'racer-mode-hook #'company-mode))
-  :hook (rust-mode . (racer-mode eldoc-mode)))
 
 (use-package savehist
   :config
@@ -2107,6 +2132,63 @@ foo -> &foo[..]"
       (server-start)))
   :hook (after-init . my/server-start-maybe))
 
+(use-package smartparens
+  :disabled
+  :bind (:map smartparens-mode-map
+         ;; Movement and navigation
+         ("C-M-f"       . sp-forward-sexp)
+         ("C-M-b"       . sp-backward-sexp)
+         ("C-M-u"       . sp-backward-up-sexp)
+         ("C-M-d"       . sp-down-sexp)
+         ("C-M-p"       . sp-backward-down-sexp)
+         ("C-M-n"       . sp-up-sexp)
+         ;; Deleting and killing
+         ("C-M-k"       . sp-kill-sexp)
+         ("C-M-w"       . sp-copy-sexp)
+         ;; Depth changing
+         ("M-s"         . sp-splice-sexp)
+         ("M-<up>"      . sp-splice-sexp-killing-backward)
+         ("M-<down>"    . sp-splice-sexp-killing-forward)
+         ("M-r"         . sp-splice-sexp-killing-around)
+         ("M-?"         . sp-convolute-sexp)
+         ;; Barfage & Slurpage
+         ("C-)"         . sp-forward-slurp-sexp)
+         ("C-<right>"   . sp-forward-barf-sexp)
+         ("C-}"         . sp-backward-up-sexp)
+         ("C-<left>"    . sp-forward-barf-sexp)
+         ("C-("         . sp-backward-slurp-sexp)
+         ("C-M-<left>"  . sp-backward-slurp-sexp)
+         ("C-{"         . sp-backward-barf-sexp)
+         ("C-M-<right>" . sp-backward-barf-sexp)
+         ("M-S"         . sp-split-sexp)
+         ("M-J"         . sp-join-sexp)
+         ("C-M-t"       . sp-transpose-sexp))
+  :bind (:map smartparens-strict-mode-map
+         ("M-q"         . sp-indent-defun)
+         ("C-j"         . sp-newline))
+  :config
+  (require 'smartparens-config)
+
+  (setq smartparens-strict-mode t
+        sp-autoskip-closing-pair 'always
+        sp-base-key-bindings 'paredit
+        sp-hybrid-kill-entire-symbol nil)
+
+  (sp-local-pair 'emacs-lisp-mode "'" nil :when '(sp-in-string-p))
+  (sp-local-pair 'emacs-lisp-mode "`" nil :when '(sp-in-string-p))
+  (sp-with-modes '(html-mode sgml-mode web-mode)
+                 (sp-local-pair "<" ">"))
+  (sp-with-modes sp--lisp-modes
+                 (sp-local-pair "(" nil :bind "C-("))
+  (sp-with-modes '(markdown-mode gfm-mode rst-mode)
+                 (sp-local-pair "*" "*" :bind "C-*")
+                 (sp-local-tag "2" "**" "**")
+                 (sp-local-tag "s" "```scheme" "```")
+                 (sp-local-tag "<"  "<_>" "</_>" :transform 'sp-match-sgml-tags))
+  (smartparens-global-mode +1)
+  (show-smartparens-global-mode +1)
+  :hook ((lisp-mode emacs-lisp-mode) . smartparens-strict-mode))
+
 (use-package sql-indent
   :mode ("\\.sql\\'"))
 
@@ -2127,59 +2209,6 @@ foo -> &foo[..]"
     (interactive)
     (setq swiper--current-window-start nil)
     (swiper-mc)))
-
-(use-package js2-mode
-  :mode "\\.js\\'"
-  :ensure-system-package (eslint_d . "npm install -g eslint_d")
-  :bind (:map js2-mode-map
-         ("," . self-with-space)
-         ("=" . pad-equals)
-         (":" . self-with-space))
-  :interpreter ("node" . js2-mode)
-  :init
-  (setq js2-mode-show-strict-warnings nil
-        js2-highlight-level           3)
-  :config
-  (defvaralias 'js-switch-indent-offset 'js2-basic-offset)
-  (setenv "NODE_NO_READLINE" "1")
-  (with-eval-after-load 'flycheck
-    (flycheck-mode +1)
-    (setq flycheck-javascript-eslint-executable "eslint_d"))
-  :hook (js2-mode . js2-imenu-extras-mode))
-
-(use-package nodejs-repl
-  :ensure-system-package node
-  :defer t)
-
-(use-package prettier-js
-  :after js2-mode
-  :ensure-system-package (prettier . "npm i -g prettier")
-  :bind (:map js2-mode-map
-         ("s-b" . prettier))
-  :config
-  (setq prettier-args '("--no-semi" "--trailing-comma" "all")))
-
-(use-package web-beautify
-  :ensure-system-package (prettier . "npm i -g js-beautify")
-  :bind ((:map sgml-mode-map
-          ("s-b" . web-beautify-html))
-         (:map css-mode-map
-          ("s-b" . web-beautify-css))))
-
-(use-package rjsx-mode
-  :mode "\\.jsx\\'"
-  :after js2-mode
-  :preface
-  (defun my/rjsx-config ()
-    "Configuration for rjsx files."
-    (with-eval-after-load 'flycheck
-      (flycheck-mode +1)
-      (setq flycheck-check-syntax-automatically '(save mode-enabled idle-change))))
-  :config
-  (bind-key "=" #'pad-equals rjsx-mode-map
-            (not (memq (js2-node-type (js2-node-at-point))
-                       (list rjsx-JSX rjsx-JSX-ATTR rjsx-JSX-IDENT rjsx-JSX-MEMBER))))
-  :hook (rjsx-mode . my/rjsx-config))
 
 (use-package tide
   ;; See: https://github.com/ananthakumaran/tide
@@ -2212,18 +2241,8 @@ foo -> &foo[..]"
   :hook (before-save . tide-format-before-save)
   :hook ((js2-mode rjsx-mode typescript-mode) . my/tide-config))
 
-(use-package password-cache
-  :config
-  ;; package manager transactions such as installing and removing
-  ;; packages are run via the `sudo` command in Eshell. If you’d like
-  ;; to cache the password for, say, an hour, you can configure Eshell
-  ;; to use its own version of sudo via TRAMP:
-  (setq password-cache t
-        password-cache-expiry 3600))
-
-(use-package eshell
-  :config
-  (require 'em-tramp))
+(use-package toc-org
+  :after (org))
 
 (use-package toml-mode
   :mode "\\.toml\\'")
@@ -2263,6 +2282,13 @@ foo -> &foo[..]"
   (treemacs-follow-mode t)
   (treemacs-filewatch-mode t))
 
+(use-package treemacs-projectile
+  :after (treemacs projectile)
+  :bind (("C-c t P" . treemacs-projectile)
+         ("C-c t p" . treemacs-projectile-toggle))
+  :config
+  (setq treemacs-header-function #'treemacs-projectile-create-header))
+
 (use-package ts-comint
   :after typescript-mode
   :bind (:map typescript-mode-map
@@ -2282,12 +2308,14 @@ foo -> &foo[..]"
       (my/tide-config)))
   :hook (web-mode . my/web-tsx-config))
 
-(use-package treemacs-projectile
-  :after (treemacs projectile)
-  :bind (("C-c t P" . treemacs-projectile)
-         ("C-c t p" . treemacs-projectile-toggle))
-  :config
-  (setq treemacs-header-function #'treemacs-projectile-create-header))
+(use-package web-beautify
+  :bind ((:map sgml-mode-map
+          ("s-b" . web-beautify-html))
+         (:map css-mode-map
+          ("s-b" . web-beautify-css)))
+  :init
+  (when system-packages-package-manager
+    (system-packages-ensure "js-beautify" "npm i -g js-beautify")))
 
 (use-package web-mode
   :mode ("\\.html?\\'"
@@ -2323,7 +2351,7 @@ foo -> &foo[..]"
   :diminish yas-minor-mode
   :mode ("/\\.emacs\\.d/snippets" . snippet-mode)
   :bind (:map yas-keymap
-              ("C-i" . yas-next-field-or-maybe-expand))
+         ("C-i" . yas-next-field-or-maybe-expand))
   :preface
   (defun my/snippet-disable-newline ()
     "Disable newline at end of file to avoid extra newlines during expansion."
@@ -2339,14 +2367,6 @@ foo -> &foo[..]"
   :init
   (when system-packages-package-manager
     (system-packages-ensure "graphviz")))
-
-(use-package ediff
-  :config
-  (setq ediff-window-setup-function 'ediff-setup-windows-plain))
-
-(use-package bug-hunter
-  ;; See: https://github.com/Malabarba/elisp-bug-hunter
-  )
 
 ;;;[END_USE_PACKAGE]
 
