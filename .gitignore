@@ -18,3 +18,4 @@ tags
 *.swo
 *.swp
 *.orig
+/etc/server-auth/server

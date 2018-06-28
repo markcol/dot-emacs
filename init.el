@@ -81,14 +81,18 @@
   (load bootstrap-file nil 'nomessage))
 
 (defun my/wrap-in-straight-transaction (orig-fn &rest args)
-  "Start the Emacs Startup Profiler using the straight.el transaction system.
+  "Wrap ORIG-FN in a straight.el transaction.
 
-This is intended as an advising function for functions that load the init file after
-Emacs initialization, such as `esup':
+Any arguments provided in ARGS are passed to ORIG-FN within the
+transaction.
+
+This is intended as an advising function for functions that load
+the init file after Emacs initialization, such as `esup':
 
   (advice-add 'esup :around #'my/wrap-in-straight-transation).
 
-See https://github.com/raxod502/straight.el#the-transaction-system."
+For more information, refer to the straight.el documentation:
+https://github.com/raxod502/straight.el#the-transaction-system."
   (unwind-protect
       (let ((straight-treat-as-init t))
         (apply orig-fn args))
@@ -103,60 +107,60 @@ See https://github.com/raxod502/straight.el#the-transaction-system."
 (use-package bind-key)
 (use-package diminish)
 
-(use-package use-package-ensure-system-package
-  :if (not (eq system-type 'windows-nt))
-  :init
-  (use-package system-packages
-    :preface
-    (when (and nil
-               (eq system-type 'windows-nt)
-               (executable-find "choco"))
-      (defun system-packages--run-command (action &optional pack args)
-        "Run a command asynchronously using the system's package manager.
+(use-package system-packages
+  :preface
+  (when (and nil
+             (eq system-type 'windows-nt)
+             (executable-find "choco"))
+    (defun system-packages--run-command (action &optional pack args)
+      "Run a command asynchronously using the system's package manager.
 See `system-packages-get-command' for how to use ACTION, PACK,
 and ARGS."
-        (let ((command (if (and (eq system-packages-package-manager 'choco)
-                                (memq action '(install uninstall update clean-cache)))
-                           (format "runas /user:administrator@%s \"%s\""
-                                   system-name
-                                   (system-packages-get-command action pack args))
-                         (system-packages-get-command action pack args)))
-              (default-directory (if system-packages-use-sudo
-                                     "/sudo::"
-                                   default-directory)))
-          (if (eq system-type 'windows-nt)
-              (progn
-                (let ((shell-prompt-pattern "Enter the password for administrator@MHCOLBUR-LAP:")
-                      (comint-use-prompt-regexp "Enter the password for administrator@MHCOLBUR-LAP:"))
-                  (shell-command command "*system-packages*")
-                  (send-invisible "Enter administrator password: ")))
-            (async-shell-command command "*system-packages*"))))
-      )
-    :config
-    (when (and nil
-               (eq system-type 'windows-nt)
-               (executable-find "choco"))
-      (add-to-list 'system-packages-supported-package-managers
-                   '(choco .
-                           ((default-sudo . nil)
-                            (install . "choco install --noprogress")
-                            (search . "choco search")
-                            (uninstall . "choco uninstall")
-                            (update . "choco upgrade")
-                            (clean-cache . "choco optimize")
-                            (log . "type C:/ProgramData/chocolatey/logs/chocolatey.log")
-                            (get-info . "choco info")
-                            (get-info-remote . "choco info")
-                            (list-files-provided-by . "choco info")
-                            (verify-all-packages . nil)
-                            (verify-all-dependencies . nil)
-                            (remove-orphaned . nil)
-                            (list-installed-packages . "choco list -lai")
-                            (list-installed-packages-all . "choco list -ai")
-                            (list-dependencies-of . nil)
-                            (noconfirm . "-y"))))
-      (setq system-packages-use-sudo nil)
-      (setq system-packages-package-manager 'choco))))
+      (let ((command (if (and (eq system-packages-package-manager 'choco)
+                              (memq action '(install uninstall update clean-cache)))
+                         (format "runas /user:administrator@%s \"%s\""
+                                 system-name
+                                 (system-packages-get-command action pack args))
+                       (system-packages-get-command action pack args)))
+            (default-directory (if system-packages-use-sudo
+                                   "/sudo::"
+                                 default-directory)))
+        (if (eq system-type 'windows-nt)
+            (progn
+              (let ((shell-prompt-pattern "Enter the password for administrator@MHCOLBUR-LAP:")
+                    (comint-use-prompt-regexp "Enter the password for administrator@MHCOLBUR-LAP:"))
+                (shell-command command "*system-packages*")
+                (send-invisible "Enter administrator password: ")))
+          (async-shell-command command "*system-packages*")))))
+  :config
+  (when (and nil
+             (eq system-type 'windows-nt)
+             (executable-find "choco"))
+    (add-to-list 'system-packages-supported-package-managers
+                 '(choco .
+                         ((default-sudo . nil)
+                          (install . "choco install --noprogress")
+                          (search . "choco search")
+                          (uninstall . "choco uninstall")
+                          (update . "choco upgrade")
+                          (clean-cache . "choco optimize")
+                          (log . "type C:/ProgramData/chocolatey/logs/chocolatey.log")
+                          (get-info . "choco info")
+                          (get-info-remote . "choco info")
+                          (list-files-provided-by . "choco info")
+                          (verify-all-packages . nil)
+                          (verify-all-dependencies . nil)
+                          (remove-orphaned . nil)
+                          (list-installed-packages . "choco list -lai")
+                          (list-installed-packages-all . "choco list -ai")
+                          (list-dependencies-of . nil)
+                          (noconfirm . "-y"))))
+    (setq system-packages-use-sudo nil)
+    (setq system-packages-package-manager 'choco)))
+
+(use-package use-package-ensure-system-package
+  :if (not (eq system-type 'windows-nt))
+  :after (system-packages))
 
 (use-package use-package-chords
   :disabled
@@ -510,8 +514,8 @@ Any ARGS passed in are ignored."
 ;; that they do not leave stray customizations behind.
 (advice-add 'load-theme :before #'my/unload-themes)
 
-;; garbage collect when frame loses focus
 (when (display-graphic-p)
+  ;; garbage collect when frame loses focus
   (add-hook 'focus-out-hook #'garbage-collect))
 
 (defvar my/preferred-fonts '(("Fira Code" . -2)
@@ -741,23 +745,25 @@ Used as hook function for `kill-emacs-hook', because
 
 (use-package dash-at-point
   :if (eq system-type 'darwin)
-  :ensure-system-package "dash"
-  :defer t)
+  :defer t
+  :init
+  (when system-packages-package-manager
+    (system-packages-ensure "dash")))
 
 (use-package dired
   :straight f
   :config
   (require 'dired-x)
-  (use-package dired-details
-    :after (dired)
-    :init
-    (setq-default dired-details-hidden-string "--- ")
-    :config
-    (dired-details-install))
-
   (when (memq system-type '(gnu/linux darwin))
     ;; Show human-readable file sizes and sort numbers properly
     (setq-default dired-listing-switches "-alhv")))
+
+(use-package dired-details
+  :after (dired)
+  :init
+  (setq-default dired-details-hidden-string "--- ")
+  :config
+  (dired-details-install))
 
 (use-package edbi
   ;; Emacs Database Interface
@@ -792,6 +798,22 @@ Used as hook function for `kill-emacs-hook', because
   ;; Always the built-in core library instead of any EditorConfig executable to get properties.
   (set-variable 'editorconfig-get-properties-function #'editor-config-core-get-properties-hash)
   (editorconfig-mode 1))
+
+(use-package eglot
+  :disabled
+  :config
+  (when (executable-find "bash-language-server")
+    (add-to-list 'eglot-server-programs
+                 `(sh-mode . ("bash-language-server" "start" "-v" "--tcp" "--host"
+                              "localhost" "--port" :autoport))))
+  (when (executable-find "rls")
+    (add-to-list 'eglot-server-programs
+                 `(rust-mode . ("rls" "-v" "--tcp" "--host"
+                                "localhost" "--port" :autoport))))
+  (when (executable-find "pyls")
+    (add-to-list 'eglot-server-programs
+                 `(python-mode . ("pyls" "-v" "--tcp" "--host"
+                                  "localhost" "--port" :autoport)))))
 
 (use-package eldoc
   :straight f
@@ -1008,11 +1030,16 @@ _v_ verify setup    _f_ check           _s_ select
   :hook (prog-mode . flycheck-mode))
 
 (use-package flycheck-posframe
-  :after flycheck
+  :after (flycheck)
+  :config
+  (flycheck-posframe-configure-pretty-defaults)
+  (set-face-attribute 'flycheck-posframe-error-face nil :inherit 'error)
+  ;; mark warnings with UNICODE WARNING symbol
+  (setq flycheck-posframe-warning-prefix "\u26a0 ")
   :hook (flycheck-mode . flycheck-posframe-mode))
 
 (use-package fullframe
-  ;; Advise a command so that hte buffer dislays in a full-frame window.
+  ;; Advise a command so that the buffer dislays in a full-frame window.
   :defer t)
 
 (use-package gitignore-mode
@@ -1049,8 +1076,10 @@ initialization, it can loop until OS handles are exhausted."
          ("C-c b ." . goto-last-change-reverse)))
 
 (use-package graphviz-dot-mode
-  :ensure-system-package graphviz
-  :mode "\\.dot\\'")
+  :mode "\\.dot\\'"
+  :init
+  (when system-packages-package-manager
+    (system-packages-ensure "graphviz")))
 
 (use-package grep
   :if (executable-find "grep")
@@ -1083,12 +1112,12 @@ initialization, it can loop until OS handles are exhausted."
 
 (use-package imenu
   :defer t
-  :config
-  (use-package imenu-anywhere
-    :after (imenu)
-    :bind (("C-c i" . imenu-anywhere)
-           ("s-i"   . imenu-anywhere)))
   :hook (emacs-lisp . imenu-add-menubar-index))
+
+(use-package imenu-anywhere
+  :after (imenu)
+  :bind (("C-c i" . imenu-anywhere)
+         ("s-i"   . imenu-anywhere)))
 
 (use-package indent
   :straight f
@@ -1109,31 +1138,32 @@ initialization, it can loop until OS handles are exhausted."
       (setq bufer-face-mode-face '(:family "Bookerly"))
       (buffer-face-mode)
       (text-scale-adjust 1)))
-  :hook (Info-mode . my/Info-mode-config)
+  :hook (Info-mode . my/Info-mode-config))
+
+(use-package info-look
+  :after (info)
+  :defer t
   :config
-  (use-package info-look
-    :after (info)
-    :defer t
-    :config
-    (autoload 'info-lookup-add-help "info-look")
-    (use-package info-lookmore
-      :after (info info-look)
-      :config
-      (info-lookmore-elisp-cl)
-      (info-lookmore-apropos-elisp)
-      (info-lookmore-elisp-userlast)
-      (with-eval-after-load 'gnus
-        (info-lookmore-elisp-gnus)))))
+  (autoload 'info-lookup-add-help "info-look"))
+
+(use-package info-lookmore
+  :after (info info-look)
+  :config
+  (info-lookmore-elisp-cl)
+  (info-lookmore-apropos-elisp)
+  (info-lookmore-elisp-userlast)
+  (with-eval-after-load 'gnus
+    (info-lookmore-elisp-gnus)))
 
 (use-package isearch
   :straight f
   :bind (("C-M-r"    . my/isearch-backward-other-window)
          ("C-M-s"    . my/isearch-forward-other-window))
   :bind (:map isearch-mode-map
-              ("C-c" . isearch-toggle-case-fold)
-              ("C-t" . isearch-toggle-regexp)
-              ("C-^" . isearch-edit-string)
-              ("C-i" . isearch-complete))
+         ("C-c" . isearch-toggle-case-fold)
+         ("C-t" . isearch-toggle-regexp)
+         ("C-^" . isearch-edit-string)
+         ("C-i" . isearch-complete))
   :preface
   (defun my/isearch-backward-other-window ()
     "Incrementally search backward using a new window."
@@ -1208,14 +1238,14 @@ initialization, it can loop until OS handles are exhausted."
     (interactive)
     (let (amend)
       (with-ivy-window
-        ;;move to last word boundary
-        (re-search-backward "\\b")
-        (let ((pt (point))
-              (le (line-end-position)))
-          (forward-word 1)
-          (if (> (point) le)
-              (goto-char pt)
-            (setq amend (buffer-substring-no-properties pt (point))))))
+       ;;move to last word boundary
+       (re-search-backward "\\b")
+       (let ((pt (point))
+             (le (line-end-position)))
+         (forward-word 1)
+         (if (> (point) le)
+             (goto-char pt)
+           (setq amend (buffer-substring-no-properties pt (point))))))
       (when amend
         (insert (replace-regexp-in-string "  +" " " amend)))))
 
@@ -1230,38 +1260,38 @@ initialization, it can loop until OS handles are exhausted."
         ivy-use-virtual-buffers      t
         ivy-wrap                     t)
   :config
-  (use-package ivy-pass
-    :demand t
-    :after (ivy)
-    :commands ivy-pass)
-
-  (use-package ivy-rich
-    :demand t
-    :after (ivy)
-    :config
-    (ivy-set-display-transformer 'ivy-switch-buffer
-                                 'ivy-rich-switch-buffer-transformer)
-    (setq ivy-virtual-abbreviate 'full
-          ivy-rich-switch-buffer-align-virtual-buffer t
-          ivy-rich-path-style 'abbrev))
-
-  (use-package ivy-hydra
-    :demand t
-    :after (ivy hydra))
-
   (ivy-mode 1)
   (ivy-set-occur 'ivy-switch-buffer 'ivy-switch-buffer-occur)
   (with-eval-after-load 'flx
     (setq ivy-re-builders-alist '((t . ivy--regex-fuzzy)))))
 
-(use-package json-mode
-  :mode "\\.json\\'"
-  :config
-  (use-package json-reformat
-    :after (json-mode))
+(use-package ivy-pass
+  :demand t
+  :after (ivy)
+  :commands ivy-pass)
 
-  (use-package json-snatcher
-    :after (json-mode)))
+(use-package ivy-rich
+  :demand t
+  :after (ivy)
+  :config
+  (ivy-set-display-transformer 'ivy-switch-buffer
+                               'ivy-rich-switch-buffer-transformer)
+  (setq ivy-virtual-abbreviate 'full
+        ivy-rich-switch-buffer-align-virtual-buffer t
+        ivy-rich-path-style 'abbrev))
+
+(use-package ivy-hydra
+  :demand t
+  :after (ivy hydra))
+
+(use-package json-mode
+  :mode "\\.json\\'")
+
+(use-package json-reformat
+  :after (json-mode))
+
+(use-package json-snatcher
+  :after (json-mode))
 
 (use-package lisp-mode
   :straight f
@@ -1335,37 +1365,36 @@ initialization, it can loop until OS handles are exhausted."
     (when (and (featurep 'projectile) lsp--cur-workspace)
       (setq projectile-project-root (lsp--workspace-root lsp--cur-workspace))))
   :config
-  (use-package lsp-ui
-    :config
-    (with-eval-after-load 'flycheck
-      (require 'lsp-ui-flycheck)
-      (add-hook 'lsp-after-open-hook #'lsp-ui-flycheck-enable))
-    (with-eval-after-load 'imenu
-      (require 'lsp-imenu)
-      (add-hook 'lsp-after-open-hook #'lsp-enable-imenu))
-    (setq lsp-ui-sideline-ignore-duplicate t)
-    :hook (lsp-mode . lsp-ui-mode))
-
-  (use-package company-lsp
-    :after company
-    :preface
-    (defun my/lsp-set-cfg ()
-      (let ((lsp-cfg `(:pyls (:configurationSources ("flake8")))))
-        ;; TODO: check lsp--cur-workspace here to decide per server / project
-        (lsp--set-configuration lsp-cfg)))
-    :hook (lsp-after-initialize . my/lsp-set-cfg)
-    :config
-    (push 'copany-lsp company-backends))
-
-  (add-hook 'python-mode-hook #'lsp-python-enable)
   (with-eval-after-load 'projectile
-    (lsp-define-stdio-client lsp-python "python" #'projectile-project-root '("pyls"))
     (add-hook 'lsp-before-open-hook #'my/set-projectile-root)))
+
+(use-package lsp-ui
+  :after (lsp-mode)
+  :config
+  (with-eval-after-load 'flycheck
+    (require 'lsp-ui-flycheck)
+    (add-hook 'lsp-after-open-hook #'lsp-ui-flycheck-enable))
+  (with-eval-after-load 'imenu
+    (require 'lsp-imenu)
+    (add-hook 'lsp-after-open-hook #'lsp-enable-imenu))
+  (setq lsp-ui-sideline-ignore-duplicate t)
+  :hook (lsp-mode . lsp-ui-mode))
+
+(use-package company-lsp
+  :after (company lsp-mode)
+  :preface
+  (defun my/lsp-set-cfg ()
+    (let ((lsp-cfg `(:pyls (:configurationSources ("flake8")))))
+      ;; TODO: check lsp--cur-workspace here to decide per server / project
+      (lsp--set-configuration lsp-cfg)))
+  :hook (lsp-after-initialize . my/lsp-set-cfg)
+  :config
+  (push 'copany-lsp company-backends))
 
 (use-package macrostep
   :after (emacs-lisp-mode)
   :bind (:map emacs-lisp-mode-map
-              ("C-c e m" . macrostep-expand)))
+         ("C-c C-e" . macrostep-expand)))
 
 (use-package magit
   :bind ("C-c g" . magit-status)
@@ -1500,12 +1529,6 @@ _q_ quit            _a_ amend
               ((executable-find "markdown") "markdown")
               (t nil)))
   :config
-  (use-package markdown-preview-mode
-    :if (executable-find "multimarkdown")
-    :init
-    (setq markdown-preview-stylesheets
-          (list (concat "https://github.com/dmarcotte/github-markdown-preview/"
-                        "blob/master/data/css/github.css"))))
   (with-eval-after-load 'hydra
     (defhydra hydra-markdown (:color pink)
       "
@@ -1528,23 +1551,31 @@ _q_ quit            _c_ insert          _r_ insert
       ("M-<down>" markdown-table-move-row-down)
       ("M-<up>" markdown-table-move-row-up))))
 
+(use-package markdown-preview-mode
+  :after (markdown-mode)
+  :if (executable-find "multimarkdown")
+  :init
+  (setq markdown-preview-stylesheets
+        (list (concat "https://github.com/dmarcotte/github-markdown-preview/"
+                      "blob/master/data/css/github.css"))))
+
 (use-package minibuffer
   ;; TODO(markcol): setting `gc-cons-threshold' doesn't work in Emacs 27?!
   :disabled
   :straight f
   :preface
-  (defun my/minibuffer-setup-hook ()
+  (defun my/minibuffer-setup ()
     "Setup minibuffer for use."
     ;; Disable garbage collection while in minibuffer to avoid stalls.
     (setq gc-cons-threshold most-positive-fixnum))
 
-  (defun my/minibuffer-exit-hook ()
+  (defun my/minibuffer-exit ()
     "Restore minibuffer settings upon exit."
     ;; Restore garbage collection threshold to default.
     (setq gc-cons-threshold my/gc-cons-threshold-default))
 
-  :hook (minibuffer-setup . my/minibuffer-setup-hook)
-  :hook (minibuffer-exit  . my/minibuffer-exit-hook))
+  :hook (minibuffer-setup . my/minibuffer-setup)
+  :hook (minibuffer-exit  . my/minibuffer-exit))
 
 (use-package move-text
   :defer t
@@ -1568,7 +1599,6 @@ _q_ quit            _c_ insert          _r_ insert
     ;; line numbers tend to vanish next to code blocks.
     (advice-add #'markdown-fontify-code-block-natively
                 :after #'nlinum-hl-do-markdown-fontify-region))
-
   (with-eval-after-load 'web-mode
     ;; When using `web-mode's code-folding an entire range of line numbers will
     ;; vanish in the affected area.
@@ -1581,48 +1611,6 @@ _q_ quit            _c_ insert          _r_ insert
              :local-repo "org" :files (:defaults "contrib/lisp/*.el"))
   :config
   ;; TODO(markcol): configure org-crypt
-
-  ;; org-ql and org-agenda-ng are dependencies for org-sidebar, but
-  ;; they are not on MELPA.
-  (use-package org-ql
-    :straight (org-ql :host github :repo "alphapapa/org-agenda-ng"))
-
-  (use-package org-agenda-ng
-    :straight (org-agenda-ng :host github :repo "alphapapa/org-agenda-ng"))
-
-  (use-package org-sidebar
-    :requires (org-ql org-agenda-ng)
-    :after (org)
-    :straight (org-sidebar :host github :repo "alphapapa/org-sidebar")
-    :after org
-    :commands (org-sidebar)
-    :bind ("C-c o s" . org-sidebar))
-
-  (use-package org-journal
-    :after org
-    :bind (("C-c o t" . org-journal-new-entry)
-           ("C-c o y" . journal-file-yesterday))
-    :init
-    ;; TODO(markcol): could be set in settings.el?
-    (setq org-journal-dir "~/Sync/shared/journal/2018/"
-          org-journal-file-format "%Y%m%d"
-          org-journal-date-format "%e %b %Y (%A)"
-          org-journal-time-format "")
-    :preface
-    (defun get-journal-file-yesterday ()
-      "Gets filename for yesterday's journal entry."
-      (let* ((yesterday (time-subtract (current-time) (days-to-time 1)))
-             (daily-name (format-time-string "%Y%m%d" yesterday)))
-        (expand-file-name (concat org-journal-dir daily-name))))
-
-    (defun journal-file-yesterday ()
-      "Creates and load a file based on yesterday's date."
-      (interactive)
-      (find-file (get-journal-file-yesterday))))
-
-  (use-package toc-org
-    :after org)
-
   (with-eval-after-load 'hydra
     (defhydra hydra-org (:color pink)
       "
@@ -1656,6 +1644,68 @@ _q_ quit            _i_ insert          _<_ previous
                              ("~" org-verbatim "<code>" "</code>" verbatim)))
   (setq org-todo-keywords
         '("TODO" "|" "CANCELLED" "DONE")))
+
+(use-package org-babel
+  :disabled
+  ;; See: http://cachestocaches.com/2018/6/org-literate-programming/
+  :after (org)
+  :init
+  (setq org-src-fontify-natively t     ; Syntax highlight src blocks
+        org-confirm-babel-evaluate nil ; Don't prompt before running code
+        ;; Fix an incompatibility between the ob-async and ob-ipython packages
+        ob-async-no-async-languages-alist '("ipython"))
+  :config
+  ;; TODO(markcol): avoid do-load-languages to improve performance.
+  (org-babel-do-load-languages
+   'org-babel-load-languages
+   '((python . t)
+     (ipython . t)
+     (sh . t)
+     (shell . t)
+     (rust . t))))
+
+(use-package org-ql
+  ;; org-ql is a requirement org-sidebar, but it is not on MELPA.
+  :straight (org-ql :host github :repo "alphapapa/org-agenda-ng")
+  :after (org))
+
+(use-package org-agenda-ng
+  ;; org-agenda-ng is a requirement for org-sidebar, but
+  ;; not on MELPA.
+  :straight (org-agenda-ng :host github :repo "alphapapa/org-agenda-ng")
+  :after (org))
+
+(use-package org-sidebar
+  :after (org)
+  :requires (org-agenda-ng org-ql)
+  :straight (org-sidebar :host github :repo "alphapapa/org-sidebar")
+  :commands (org-sidebar)
+  :bind ("C-c o s" . org-sidebar))
+
+(use-package org-journal
+  :after (org)
+  :bind (("C-c o t" . org-journal-new-entry)
+         ("C-c o y" . journal-file-yesterday))
+  :init
+  ;; TODO(markcol): could be set in settings.el?
+  (setq org-journal-dir "~/Sync/shared/journal/2018/"
+        org-journal-file-format "%Y%m%d"
+        org-journal-date-format "%e %b %Y (%A)"
+        org-journal-time-format "")
+  :preface
+  (defun get-journal-file-yesterday ()
+    "Gets filename for yesterday's journal entry."
+    (let* ((yesterday (time-subtract (current-time) (days-to-time 1)))
+           (daily-name (format-time-string "%Y%m%d" yesterday)))
+      (expand-file-name (concat org-journal-dir daily-name))))
+
+  (defun journal-file-yesterday ()
+    "Creates and load a file based on yesterday's date."
+    (interactive)
+    (find-file (get-journal-file-yesterday))))
+
+(use-package toc-org
+  :after (org))
 
 (use-package paredit
   :diminish
@@ -1821,56 +1871,67 @@ _i_ reset cache     _K_ kill all        _D_ root            _R_ regexp replace
        :mode 'python-mode
        :regexp "[a-zA-Z_0-9.]+"
        :doc-spec
-       '(("(python)Python Module Index" )
-         ("(python)Index"
-          (lambda
-            (item)
-            (cond
-             ((string-match
-               "\\([A-Za-z0-9_]+\\)() (in module \\([A-Za-z0-9_.]+\\))" item)
-              (format "%s.%s" (match-string 2 item)
-                      (match-string 1 item)))))))))
+        '(("(python)Python Module Index" )
+          ("(python)Index"
+           (lambda
+             (item)
+             (cond
+              ((string-match
+                "\\([A-Za-z0-9_]+\\)() (in module \\([A-Za-z0-9_.]+\\))" item)
+               (format "%s.%s" (match-string 2 item)
+                       (match-string 1 item)))))))))
     (setq python-shell-prompt-detect-failure-warning nil
           indent-tabs-mode nil)
     (set (make-local-variable 'parens-require-spaces) nil))
   :hook (python-mode . my/python-mode-config)
   :config
-  (use-package elpy
-    :if (and (not (eq system-type 'windows-nt))
-             (executable-find "pip"))
-    :ensure-system-package ((flake8   . "pip install flake8")
-                            (autopep8 . "pip install autopep8")
-                            (yapf     . "pip install yapf"))
-    :after (python-mode)
-    :bind (:map elpy-mode-map
-           ("C-c C-k" . python-shell-send-buffer)
-           ("C-M-x"   . python-shell-send-defun))
-    :config
-    (elpy-enable)
-    (with-eval-after-load 'flycheck
-      (remove-hook 'elpy-modules #'elpy-module-flymake)
-      (remove-hook 'elpy-modules #'elpy-module-yasnippet)
-      (remove-hook 'elpy-mode-hook #'elpy-module-highlight-indentation))
-    (with-eval-after-load 'rope
-      (setq elpy-rpc-backend "rope"))
-    (with-eval-after-load 'jedi-core
-      (setq elpy-rpc-backend "jedi"))
-    :hook (python-mode . elpy-mode))
-
-  (use-package jedi-core
-    :if (not (eq system-type 'windows-nt))
-    :if (executable-find "jedi")
-    :ensure-system-package (jedi . "pip install jedi")
-    :defer t
-    :config
-    (use-package company-jedi
-      :if (not (eq system-type 'windows-nt))
-      :after (python-mode company jedi-core)
-      :defer t
-      :config
-      (add-to-list 'company-backends '(company-jedi company-files)))
-    :hook (python-mode . jedi-mode))
+  (with-eval-after-load 'lsp-mode
+    (add-hook 'python-mode-hook #'lsp-python-enable)
+    (with-eval-after-load 'projectile
+      (lsp-define-stdio-client lsp-python "python" #'projectile-project-root '("pyls"))))
   (my/add-zeal-or-dash-docs python-mode "python"))
+
+(use-package elpy
+  :if (not (eq system-type 'windows-nt))
+  :after (python-mode)
+  :bind (:map elpy-mode-map
+         ("C-c C-k" . python-shell-send-buffer)
+         ("C-M-x"   . python-shell-send-defun))
+  :init
+  (when system-packages-package-manager
+    (system-packages-ensure "pip")
+    (system-packages-ensure "flake8" "pip install flake8")
+    (system-packages-ensure "autopep8" "pip install autopep8")
+    (system-packages-ensure "yapf" "pip install yapf"))
+  :config
+  (elpy-enable)
+  (with-eval-after-load 'flycheck
+    (remove-hook 'elpy-modules #'elpy-module-flymake)
+    (remove-hook 'elpy-modules #'elpy-module-yasnippet)
+    (remove-hook 'elpy-mode-hook #'elpy-module-highlight-indentation))
+  (with-eval-after-load 'rope
+    (setq elpy-rpc-backend "rope"))
+  (with-eval-after-load 'jedi-core
+    (setq elpy-rpc-backend "jedi"))
+  :hook (python-mode . elpy-mode))
+
+(use-package jedi-core
+  :if (not (eq system-type 'windows-nt))
+  :ensure-system-package (jedi . "pip install jedi")
+  :defer t
+  :after (python)
+  :config
+  :hook (python-mode . jedi-mode))
+
+(use-package company-jedi
+  :if (not (eq system-type 'windows-nt))
+  :after (python-mode company jedi-core)
+  :defer t
+  :config
+  (add-to-list 'company-backends '(company-jedi company-files)))
+
+(use-package rainbow-mode
+  :diminish)
 
 (use-package rainbow-delimiters
   ;; rainbow-delimiters is a "rainbow parentheses"-like mode which
@@ -1909,19 +1970,20 @@ _i_ reset cache     _K_ kill all        _D_ root            _R_ regexp replace
 
 (use-package rg
   :defer t
-  :if (executable-find "rg")
-  :after (fullframe)
-  :ensure-system-package rg
+  :init
+  (when system-packages-package-manager
+    (system-packages-ensure "rg"))
   :config
-  (fullframe rg quit-window
-             nil
-             (lambda ()
-               (let ((wconf (fullframe/current-buffer-window-config))
-                     (new-window (split-window-below)))
-                 (set-window-buffer new-window "*rg*")
-                 (fullframe/erase-current-buffer-window-config)
-                 (with-current-buffer "*rg*"
-                   (fullframe/set-current-buffer-window-config wconf))))))
+  (with-eval-after-load fullframe
+    (fullframe rg quit-window
+               nil
+               (lambda ()
+                 (let ((wconf (fullframe/current-buffer-window-config))
+                       (new-window (split-window-below)))
+                   (set-window-buffer new-window "*rg*")
+                   (fullframe/erase-current-buffer-window-config)
+                   (with-current-buffer "*rg*"
+                     (fullframe/set-current-buffer-window-config wconf)))))))
 
 (use-package rust-mode
   :mode "\\.rs\\'"
@@ -1982,43 +2044,43 @@ foo -> &foo[..]"
       (push it prettify-symbols-alist)))
   :hook (rust-mode . my/rust-mode-config)
   :config
-  (use-package cargo
-    :after (rust)
-    :hook (rust-mode . cargo-minor-mode))
-
-  (use-package lsp-rust
-    :after (lsp-mode lsp-ui rust)
-    :if (executable-find "rustup")
-    :ensure-system-package (rls . "rustup component add rls-preview rust-analysis rust-src")
-    :init
-    (setq lsp-rust-rls-command '("rustup" "run" "nightly" "rls"))
-    :hook (rust-mode . lsp-rust-enable))
-
-  (use-package racer
-    :disabled
-    :after (rust)
-    :unless (featurep 'lsp-rust)
-    :ensure-system-package (racer . "cargo install racer")
-    :init
-    ;; Tell racer to use the rustup managed rust-src
-    (setq racer-cmd              (executable-find "racer")
-          rust-default-toolchain (car (s-split " " (-first
-                                                    (lambda (line) (s-match "default" line))
-                                                    (s-lines (shell-command-to-string "rustup toolchain list")))))
-          rust-src-path          (concat (getenv "HOME") "/.multirust/toolchains/"
-                                         rust-default-toolchain "/lib/rustlib/src/rust/src")
-          rust-bin-path          (concat (getenv "HOME") "/.multirust/toolchains/"
-                                         rust-default-toolchain "/bin")
-          racer-rust-src-path    rust-src-path)
-    (setenv "RUST_SRC_PATH" rust-src-path)
-    (setenv "RUSTC" rust-bin-path)
-    :config
-    (with-eval-after-load 'company
-      (add-to-list 'company-dabbrev-code-modes 'rust-mode)
-      (add-hook 'racer-mode-hook #'company-mode))
-    :hook (rust-mode . (racer-mode eldoc-mode)))
-
   (my/add-zeal-or-dash-docs rust-mode "rust"))
+
+(use-package cargo
+  :after (rust)
+  :hook (rust-mode . cargo-minor-mode))
+
+(use-package lsp-rust
+  :after (lsp-mode lsp-ui rust)
+  :if (executable-find "rustup")
+  :ensure-system-package (rls . "rustup component add rls-preview rust-analysis rust-src")
+  :init
+  (setq lsp-rust-rls-command '("rustup" "run" "nightly" "rls"))
+  :hook (rust-mode . lsp-rust-enable))
+
+(use-package racer
+  :disabled
+  :after (rust)
+  :unless (featurep 'lsp-rust)
+  :ensure-system-package (racer . "cargo install racer")
+  :init
+  ;; Tell racer to use the rustup managed rust-src
+  (setq racer-cmd              (executable-find "racer")
+        rust-default-toolchain (car (s-split " " (-first
+                                                  (lambda (line) (s-match "default" line))
+                                                  (s-lines (shell-command-to-string "rustup toolchain list")))))
+        rust-src-path          (concat (getenv "HOME") "/.multirust/toolchains/"
+                                       rust-default-toolchain "/lib/rustlib/src/rust/src")
+        rust-bin-path          (concat (getenv "HOME") "/.multirust/toolchains/"
+                                       rust-default-toolchain "/bin")
+        racer-rust-src-path    rust-src-path)
+  (setenv "RUST_SRC_PATH" rust-src-path)
+  (setenv "RUSTC" rust-bin-path)
+  :config
+  (with-eval-after-load 'company
+    (add-to-list 'company-dabbrev-code-modes 'rust-mode)
+    (add-hook 'racer-mode-hook #'company-mode))
+  :hook (rust-mode . (racer-mode eldoc-mode)))
 
 (use-package savehist
   :config
@@ -2029,7 +2091,7 @@ foo -> &foo[..]"
   (save-place-mode 1))
 
 (use-package scss-mode
-  :mode ("\\.sass\\'" "\\.scss\\'")
+  :mode ("\\.s[ac]ss\\'")
   :preface
   (defun my/scss-set-comment-style ()
     (setq-local comment-end "")
@@ -2039,11 +2101,11 @@ foo -> &foo[..]"
 (use-package server
   :preface
   (require 'server)
-  (defun my/server-enable ()
+  (defun my/server-start-maybe ()
     "Start an Emacs server process if one is not already running."
     (unless server-process
       (server-start)))
-  :hook (after-init . my/server-enable))
+  :hook (after-init . my/server-start-maybe))
 
 (use-package sql-indent
   :mode ("\\.sql\\'"))
@@ -2150,19 +2212,32 @@ foo -> &foo[..]"
   :hook (before-save . tide-format-before-save)
   :hook ((js2-mode rjsx-mode typescript-mode) . my/tide-config))
 
+(use-package password-cache
+  :config
+  ;; package manager transactions such as installing and removing
+  ;; packages are run via the `sudo` command in Eshell. If you’d like
+  ;; to cache the password for, say, an hour, you can configure Eshell
+  ;; to use its own version of sudo via TRAMP:
+  (setq password-cache t
+        password-cache-expiry 3600))
+
+(use-package eshell
+  :config
+  (require 'em-tramp))
+
 (use-package toml-mode
   :mode "\\.toml\\'")
 
 (use-package treemacs
   :commands (treemacs)
-  :bind (([f8]          . treemacs)
-         ("M-0"         . treemacs-select-window)
-         ("C-c 1"       . treemacs-delete-other-windows)
-         ("C-c t t"     . treemacs)
-         ("C-c t T"     . treemacs)
-         ("C-c t B"     . treemacs-bookmark)
-         ("C-c t C-t"   . treemacs-find-file)
-         ("C-c t M-t"   . treemacs-find-tag))
+  :bind (([f8]        . treemacs)
+         ("M-0"       . treemacs-select-window)
+         ("C-c 1"     . treemacs-delete-other-windows)
+         ("C-c t t"   . treemacs)
+         ("C-c t T"   . treemacs)
+         ("C-c t B"   . treemacs-bookmark)
+         ("C-c t C-t" . treemacs-find-file)
+         ("C-c t M-t" . treemacs-find-tag))
   :init
   (setq treemacs-change-root-without-asking nil
         treemacs-collapse-dirs              (if (executable-find "python") 3 0)
@@ -2185,13 +2260,6 @@ foo -> &foo[..]"
         treemacs-tag-follow-delay           1.5
         treemacs-width                      30)
   :config
-  (use-package treemacs-projectile
-    :after (treemacs projectile)
-    :bind (("C-c t P" . treemacs-projectile)
-           ("C-c t p" . treemacs-projectile-toggle))
-    :config
-    (setq treemacs-header-function #'treemacs-projectile-create-header))
-
   (treemacs-follow-mode t)
   (treemacs-filewatch-mode t))
 
@@ -2214,8 +2282,15 @@ foo -> &foo[..]"
       (my/tide-config)))
   :hook (web-mode . my/web-tsx-config))
 
+(use-package treemacs-projectile
+  :after (treemacs projectile)
+  :bind (("C-c t P" . treemacs-projectile)
+         ("C-c t p" . treemacs-projectile-toggle))
+  :config
+  (setq treemacs-header-function #'treemacs-projectile-create-header))
+
 (use-package web-mode
-  :mode ("\\.html\\'"
+  :mode ("\\.html?\\'"
          "\\.css\\'")
   :commands web-mode
   :config
@@ -2260,8 +2335,10 @@ foo -> &foo[..]"
 
 (use-package zeal-at-point
   :if (memq system-type '(gnu/linux))
-  :ensure-system-package zeal
-  :defer t)
+  :defer t
+  :init
+  (when system-packages-package-manager
+    (system-packages-ensure "graphviz")))
 
 (use-package ediff
   :config
