@@ -212,7 +212,8 @@ and ARGS."
       scroll-preserve-screen-position 1
       ;; Sentances can end with a '. ', rather than '.  '
       sentence-end-double-space nil
-      tab-width 2)
+      tab-width 2
+      c-basic-offset 4)
 
 (setq-default tab-wdith 2)
 
