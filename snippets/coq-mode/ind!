@@ -1,3 +1,0 @@
-# expand-env: ((yas-indent-line 'auto) (yas-wrap-around-region t))
-# --
-induction $1 as ${1:$(coq-insert-induction yas-text (point))}$0
