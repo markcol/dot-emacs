@@ -107,61 +107,58 @@ https://github.com/raxod502/straight.el#the-transaction-system."
 (use-package bind-key)
 (use-package diminish)
 
-(use-package system-packages
-  :preface
-  (when (and nil
-             (eq system-type 'windows-nt)
-             (executable-find "choco"))
-    (defun system-packages--run-command (action &optional pack args)
-      "Run a command asynchronously using the system's package manager.
-See `system-packages-get-command' for how to use ACTION, PACK,
-and ARGS."
-      (let ((command (if (and (eq system-packages-package-manager 'choco)
-                              (memq action '(install uninstall update clean-cache)))
-                         (format "runas /user:administrator@%s \"%s\""
-                                 system-name
-                                 (system-packages-get-command action pack args))
-                       (system-packages-get-command action pack args)))
-            (default-directory (if system-packages-use-sudo
-                                   "/sudo::"
-                                 default-directory)))
-        (if (eq system-type 'windows-nt)
-            (progn
-              (let ((shell-prompt-pattern "Enter the password for administrator@MHCOLBUR-LAP:")
-                    (comint-use-prompt-regexp "Enter the password for administrator@MHCOLBUR-LAP:"))
-                (shell-command command "*system-packages*")
-                (send-invisible "Enter administrator password: ")))
-          (async-shell-command command "*system-packages*")))))
-  :config
-  (when (and nil
-             (eq system-type 'windows-nt)
-             (executable-find "choco"))
-    (add-to-list 'system-packages-supported-package-managers
-                 '(choco .
-                         ((default-sudo . nil)
-                          (install . "choco install --noprogress")
-                          (search . "choco search")
-                          (uninstall . "choco uninstall")
-                          (update . "choco upgrade")
-                          (clean-cache . "choco optimize")
-                          (log . "type C:/ProgramData/chocolatey/logs/chocolatey.log")
-                          (get-info . "choco info")
-                          (get-info-remote . "choco info")
-                          (list-files-provided-by . "choco info")
-                          (verify-all-packages . nil)
-                          (verify-all-dependencies . nil)
-                          (remove-orphaned . nil)
-                          (list-installed-packages . "choco list -lai")
-                          (list-installed-packages-all . "choco list -ai")
-                          (list-dependencies-of . nil)
-                          (noconfirm . "-y"))))
-    (setq system-packages-use-sudo nil)
-    (setq system-packages-package-manager 'choco)))
+;; (use-package system-packages
+;;   :preface
+;;   (when (and nil
+;;              (eq system-type 'windows-nt)
+;;              (executable-find "choco"))
+;;     (defun system-packages--run-command (action &optional pack args)
+;;       "Run a command asynchronously using the system's package manager.
+;;   See `system-packages-get-command' for how to use ACTION, PACK,
+;;   and ARGS."
+;;       (let ((command (if (and (eq system-packages-package-manager 'choco)
+;;                               (memq action '(install uninstall update clean-cache)))
+;;                          (format "runas /user:administrator@%s \"%s\""
+;;                                  system-name
+;;                                  (system-packages-get-command action pack args))
+;;                        (system-packages-get-command action pack args)))
+;;             (default-directory (if system-packages-use-sudo
+;;                                    "/sudo::"
+;;                                  default-directory)))
+;;         (if (eq system-type 'windows-nt)
+;;             (progn
+;;               (let ((shell-prompt-pattern "Enter the password for administrator@MHCOLBUR-LAP:")
+;;                     (comint-use-prompt-regexp "Enter the password for administrator@MHCOLBUR-LAP:"))
+;;                 (shell-command command "*system-packages*")
+;;                 (send-invisible "Enter administrator password: ")))
+;;           (async-shell-command command "*system-packages*")))))
+;;   :config
+;;   (when (and nil
+;;              (eq system-type 'windows-nt)
+;;              (executable-find "choco"))
+;;     (add-to-list 'system-packages-supported-package-managers
+;;                  '(choco .
+;;                          ((default-sudo . nil)
+;;                           (install . "choco install --noprogress")
+;;                           (search . "choco search")
+;;                           (uninstall . "choco uninstall")
+;;                           (update . "choco upgrade")
+;;                           (clean-cache . "choco optimize")
+;;                           (log . "type C:/ProgramData/chocolatey/logs/chocolatey.log")
+;;                           (get-info . "choco info")
+;;                           (get-info-remote . "choco info")
+;;                           (list-files-provided-by . "choco info")
+;;                           (verify-all-packages . nil)
+;;                           (verify-all-dependencies . nil)
+;;                           (remove-orphaned . nil)
+;;                           (list-installed-packages . "choco list -lai")
+;;                           (list-installed-packages-all . "choco list -ai")
+;;                           (list-dependencies-of . nil)
+;;                           (noconfirm . "-y"))))
+;;     (setq system-packages-use-sudo nil)
+;;     (setq system-packages-package-manager 'choco)))
 
-(use-package use-package-ensure-system-package
-  :if (not (eq system-type 'windows-nt))
-  :after (system-packages))
-
+(use-package use-package-ensure-system-package)
 (use-package use-package-chords
   :disabled
   :config
@@ -776,9 +773,7 @@ Used as hook function for `kill-emacs-hook', because
 (use-package dash-at-point
   :if (eq system-type 'darwin)
   :defer t
-  :init
-  (when system-packages-package-manager
-    (system-packages-ensure "dash")))
+  :ensure-system-package dash)
 
 (use-package dired
   :straight f
@@ -895,12 +890,9 @@ Used as hook function for `kill-emacs-hook', because
   :bind (:map elpy-mode-map
          ("C-c C-k" . python-shell-send-buffer)
          ("C-M-x"   . python-shell-send-defun))
-  :init
-  (when system-packages-package-manager
-    (system-packages-ensure "pip")
-    (system)
-    (system-packages-ensure "autopep8" "pip install autopep8")
-    (system-packages-ensure "yapf" "pip install yapf"))
+  :ensure-system-package (pip
+                          (autopep8 . "pip install autopep8")
+                          (yapf     . "pip install yapf"))
   :config
   (elpy-enable)
   (with-eval-after-load 'flycheck
@@ -1005,10 +997,6 @@ Lisp function does not specify a special indentation."
              :host github :repo "SavchenkoValeriy/emacs-powerthesaurus")
   :bind ("C-c C-t" . powerthesuarus-lookup-word))
 
-(use-package eshell
-  :config
-  (require 'em-tramp))
-
 (use-package esup
   :init
   (advice-add 'esup :around #'my/wrap-in-straight-transaction))
@@ -1091,8 +1079,8 @@ called.")
   (with-eval-after-load 'company
     (advice-add 'company-call-frontends :before #'my/disable-fci-during-company-complete))
   (with-eval-after-load 'shell
-    (advice-add 'shell-command :around #'disable-fci-temporarily)
-    (advice-add 'shell-command-on-region :around #'disable-fci-temporarily))
+    (advice-add 'shell-command :around #'my/disable-fci-temporarily)
+    (advice-add 'shell-command-on-region :around #'my/disable-fci-temporarily))
   :hook (htmlize-before . my/htmlize-before-hook-fn)
   :hook (htmlize-after  . my/htmlize-after-hook-fn)
   :hook (prog-mode . turn-on-fci-mode))
@@ -1223,9 +1211,7 @@ initialization, it can loop until OS handles are exhausted."
 
 (use-package graphviz-dot-mode
   :mode "\\.dot\\'"
-  :init
-  (when system-packages-package-manager
-    (system-packages-ensure "graphviz")))
+  :ensure-system-package graphviz)
 
 (use-package grep
   :if (executable-find "grep")
@@ -1434,10 +1420,8 @@ initialization, it can loop until OS handles are exhausted."
   :if (not (eq system-type 'windows-nt))
   :defer t
   :after (python)
-  :init
-  (when system-packages-package-manager
-    (system-packages-ensure "pip")
-    (system-packages-ensure "jedi" "pip install jedi"))
+  :ensure-system-package (pip
+                          (jedi . "pip install jedi"))
   :config
   :hook (python-mode . jedi-mode))
 
@@ -1448,10 +1432,8 @@ initialization, it can loop until OS handles are exhausted."
          ("=" . pad-equals)
          (":" . self-with-space))
   :interpreter ("node" . js2-mode)
+  :ensure-system-package (eslint_d . "npm install -g eslint_d")
   :init
-  (when system-packages-package-manager
-    (system-packages-ensure "eslint_d" "npm install -g eslint_d"))
-
   (setq js2-mode-show-strict-warnings nil
         js2-highlight-level           3)
   :config
@@ -1514,9 +1496,8 @@ initialization, it can loop until OS handles are exhausted."
 (use-package lsp-rust
   :after (lsp-mode lsp-ui rust)
   :if (executable-find "rustup")
+  :ensure-system-package (rls . "rustup component add rls-preview rust-analysis rust-src")
   :init
-  (when system-packages-package-manager
-    (system-packages-ensure "rls" "rustup component add rls-preview rust-analysis rust-src"))
   (setq lsp-rust-rls-command '("rustup" "run" "nightly" "rls"))
   :hook (rust-mode . lsp-rust-enable))
 
@@ -1587,9 +1568,7 @@ _q_ quit            _a_ amend
 (use-package magithub
   :disabled
   :after magit
-  :init
-  (when system-packages-package-manager
-    (system-packages-ensure "hub"))
+  :ensure-system-package hub
   :config
   (magithub-feature-autoinject t))
 
@@ -1699,9 +1678,7 @@ _q_ quit            _c_ insert          _r_ insert
 
 (use-package nodejs-repl
   :defer t
-  :init
-  (when system-packages-package-manager
-    (system-packages-ensure "node"))  )
+  :ensure-system-package node)
 
 (use-package org
   :straight (org-plus-contrib
@@ -1824,6 +1801,7 @@ _q_ quit            _i_ insert          _<_ previous
     :after (paredit)))
 
 (use-package password-cache
+  :disabled
   :config
   ;; package manager transactions such as installing and removing
   ;; packages are run via the `sudo` command in Eshell. If you’d like
@@ -1846,10 +1824,8 @@ _q_ quit            _i_ insert          _<_ previous
   :after js2-mode
   :bind (:map js2-mode-map
          ("s-b" . prettier))
+  :ensure-system-package (prettier . "npm i -g prettier")
   :init
-  (when system-packages-package-manager
-    (system-packages-ensure "prettier" "npm i -g prettier"))
-
   (setq prettier-args '("--no-semi" "--trailing-comma" "all")))
 
 (use-package projectile
@@ -1952,10 +1928,8 @@ _i_ reset cache     _K_ kill all        _D_ root            _R_ regexp replace
   :disabled
   :after (rust)
   :unless (featurep 'lsp-rust)
+  :ensure-system-package (racer . "cargo install racer")
   :init
-  (when system-packages-package-manager
-    (system-packages-ensure "racer" "cargo install racer"))
-
   ;; Tell racer to use the rustup managed rust-src
   (setq racer-cmd              (executable-find "racer")
         rust-default-toolchain (car (s-split " " (-first
@@ -2012,22 +1986,8 @@ _i_ reset cache     _K_ kill all        _D_ root            _R_ regexp replace
   :straight f
   :bind ("C-c ]" . rectangle-mark-mode))
 
-(use-package rg
-  :defer t
-  :init
-  (when system-packages-package-manager
-    (system-packages-ensure "rg"))
-  :config
-  (with-eval-after-load fullframe
-    (fullframe rg quit-window
-               nil
-               (lambda ()
-                 (let ((wconf (fullframe/current-buffer-window-config))
-                       (new-window (split-window-below)))
-                   (set-window-buffer new-window "*rg*")
-                   (fullframe/erase-current-buffer-window-config)
-                   (with-current-buffer "*rg*"
-                     (fullframe/set-current-buffer-window-config wconf)))))))
+(use-package ripgrep
+  :ensure-system-package rg)
 
 (use-package rjsx-mode
   :mode "\\.jsx\\'"
@@ -2051,6 +2011,7 @@ _i_ reset cache     _K_ kill all        _D_ root            _R_ regexp replace
          ("C-c C-p" . my/rust-toggle-visbility )
          ("C-c C-m" . my/rust-toggle-mutability)
          ("C-c C-v" . my/rust-vec-as-slice))
+  :ensure-system-package (rustfmt . "rustup component add rustfmt-preview")
   :preface
   (defun my/rust-toggle-mutability ()
     "Toggle the mutability of the variable at point."
@@ -2101,9 +2062,6 @@ foo -> &foo[..]"
               ("->" . (?· (Br . Bl) ?→)))
       (push it prettify-symbols-alist)))
   :hook (rust-mode . my/rust-mode-config)
-  :init
-  (when system-packages-package-manager
-    (system-packages-ensure "rustfmt" "rustup component add rustfmt-preview"))
   :config
   (my/add-zeal-or-dash-docs rust-mode "rust"))
 
@@ -2313,9 +2271,7 @@ foo -> &foo[..]"
           ("s-b" . web-beautify-html))
          (:map css-mode-map
           ("s-b" . web-beautify-css)))
-  :init
-  (when system-packages-package-manager
-    (system-packages-ensure "js-beautify" "npm i -g js-beautify")))
+  :ensure-system-package (js-beautify . "npm i -g js-beautify"))
 
 (use-package web-mode
   :mode ("\\.html?\\'"
@@ -2364,9 +2320,7 @@ foo -> &foo[..]"
 (use-package zeal-at-point
   :if (memq system-type '(gnu/linux))
   :defer t
-  :init
-  (when system-packages-package-manager
-    (system-packages-ensure "graphviz")))
+  :ensure-system-package zeal)
 
 ;;;[END_USE_PACKAGE]
 
