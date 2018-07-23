@@ -147,31 +147,30 @@ https://github.com/raxod502/straight.el#the-transaction-system."
 (size-indication-mode 1)
 (delete-selection-mode 1)
 
-(setq auto-revert-verbose nil          ; no messages about reverted files
-      auto-save-default nil
-      auto-window-vscroll nil
-      browse-url-browser-function #'browse-url-chromium
-      confirm-kill-emacs #'y-or-n-p
-      css-indent-offset 2
-      echo-keystrokes 0.3
-      global-auto-revert-mode t
-      mouse-drag-copy-region t
-      scroll-conservatively 100000
-      scroll-margin 0
+(setq auto-revert-verbose             nil ; no messages about reverted files
+      auto-save-default               nil
+      auto-window-vscroll             nil
+      browse-url-browser-function     #'browse-url-chromium
+      c-basic-offset                  4
+      confirm-kill-emacs              #'y-or-n-p
+      css-indent-offset               2
+      echo-keystrokes                 0.1
+      global-auto-revert-mode         t
+      mouse-drag-copy-region          t
+      scroll-conservatively           100000
+      scroll-margin                   0
       scroll-preserve-screen-position 1
-      ;; Sentences can end with a '. ', rather than '.  '
-      sentence-end-double-space nil
-      tab-width 2
-      c-basic-offset 4)
+      sentence-end-double-space       nil
+      vc-follow-symlinks              t)
 
 (setq-default tab-wdith 2)
 
 ;; Use UTF-8 everywhere possible:
-(set-language-environment 'UTF-8)
+(set-language-environment   'UTF-8)
 (set-default-coding-systems 'utf-8)
 (set-terminal-coding-system 'utf-8)
 (set-keyboard-coding-system 'utf-8)
-(prefer-coding-system 'utf-8)
+(prefer-coding-system       'utf-8)
 
 ;; Do not use UTF-8 with `ansi-term`
 (defun my/advise-ansi-term-coding-system ()
@@ -179,6 +178,11 @@ https://github.com/raxod502/straight.el#the-transaction-system."
   (set-buffer-process-coding-system 'utf-8-unix 'utf-8-unix))
 
 (advice-add 'ansi-term :after #'my/advise-ansi-term-coding-system)
+
+;; History navigation in shell buffers
+(with-eval-after-load "comint"
+  (define-key comint-mode-map [(control ?p)] 'comint-previous-input)
+  (define-key comint-mode-map [(control ?n)] 'comint-next-input))
 
 (defalias 'yes-or-no-p #'y-or-n-p)
 
@@ -379,8 +383,8 @@ couldn't figure things out (ex: syntax errors)."
         (insert (mapconcat 'cdr list "\n"))))))
 
 (defun my/sort-use-package-declarations (beg end)
-  "Sort all use-package declarations in the region.
-Sorts the use-package declarations from BEG to END. Leaves the
+  "Sort all `use-package' declarations in the region.
+Sorts the `use-package' declarations from BEG to END. Leaves the
 point at where it couldn't figure things out (ex: syntax
 errors)."
   (interactive "r")
@@ -490,8 +494,21 @@ different font size based on relative apperance."
     (format "Courier-%d" size)))
 
 (use-package afternoon-theme)
-(use-package spaceline :demand t)
-(use-package all-the-icons :demand t)
+(use-package spaceline)
+(use-package all-the-icons)
+(use-package all-the-icons-ivy
+  :after (ivy)
+  :init
+  (setq all-the-icons-ivy-file-commands
+        '(
+          counsel-file-jump
+          counsel-find-file
+          counsel-projectile-find-dir
+          counsel-projectile-find-file
+          counsel-recentf
+          ))
+  :config
+  (all-the-icons-ivy-setup))
 
 (defvar my/theme-name 'afternoon
   "Name of preferred theme to use.")
@@ -500,20 +517,23 @@ different font size based on relative apperance."
   "Setup the UI settings for a newly created FRAME."
   (interactive)
   (when (display-graphic-p)
+    ;; Size frame based on the screen resolution
     (let ((frame  (or (car frame) (selected-frame)))
           (ptsize (if (>= (display-pixel-height) 2000) 10 12))
           (height (if (>= (display-pixel-height) 2000) 160 100)))
       (set-face-attribute 'default nil :height (* ptsize 10))
       (set-frame-position frame 0 0)
       (set-frame-font (my/font-spec ptsize) nil t)
-      (set-frame-size frame 120 (/ (- (display-pixel-height) height) (frame-char-height frame)))))
-  (setq-default cursor-type 'box)
+      (set-frame-size frame 120 (/ (- (display-pixel-height) height) (frame-char-height frame))))
+
+    (setq x-select-request-type '(UTF8_STRING COMPOUND_TEXT TEXT STRING))
+    (custom-theme-set-faces
+     my/theme-name
+     `(org-block-begin-line ((t (:underline "#a7a6aa" :height 0.8))))
+     `(org-block-begin-line ((t (:underline "#a7a6aa" :height 0.8)))))
+    (setq powerline-default-separator 'arrow-fade)
+    (setq-default cursor-type 'box))
   (load-theme my/theme-name t)
-  (custom-theme-set-faces
-   my/theme-name
-   `(org-block-begin-line ((t (:underline "#a7a6aa" :height 0.8))))
-   `(org-block-begin-line ((t (:underline "#a7a6aa" :height 0.8)))))
-  (setq powerline-default-separator 'arrow-fade)
   (spaceline-emacs-theme))
 
 ;; Apply my/ui-settings after making a new frame from a deamonized
@@ -551,6 +571,7 @@ different font size based on relative apperance."
   :hook (messages-buffer-mode . ansi-color-for-comint-mode-on))
 
 (use-package anzu
+  :diminish anzu-mode
   :commands (global-anzu-mode)
   :bind (([remap query-replace] . anzu-query-replace)
          ([remap query-replace-regexp] . anzu-query-replace-regexp))
@@ -683,8 +704,13 @@ Used as hook function for `kill-emacs-hook', because
   :config
   (push 'copany-lsp company-backends))
 
+(use-package compile
+  :defer t
+  :init
+  (setq compilation-scroll-output 'first-error))
+
 (use-package counsel
-  :after swiper
+  :after ivy
   :bind (("M-x"	     . counsel-M-x)
          ("C-x C-f"  . counsel-find-file)
          ("C-h f"    . counsel-describe-function)
@@ -1043,6 +1069,43 @@ called.")
   :hook (htmlize-after  . my/htmlize-after-hook-fn)
   :hook (prog-mode . turn-on-fci-mode))
 
+(use-package flycheck
+  :config
+  (setq flycheck-check-syntax-automatically '(mode-enabled idle-change save)
+        flycheck-idle-change-delay 2)
+  (setq-default flycheck-disabled-checkers '(html-tidy))
+  (with-eval-after-load 'hydra
+    (defhydra hydra-flycheck (:color pink)
+      "
+^
+^Flycheck^          ^Errors^            ^Checker^
+^────────^──────────^──────^────────────^───────^───────────
+_q_ quit            _<_ previous        _?_ describe
+_m_ manual          _>_ next            _d_ disable
+_v_ verify setup    _f_ check           _s_ select
+^^                  _l_ list            ^^
+^^                  ^^                  ^^
+"
+      ("q" nil)
+      ("<" flycheck-previous-error)
+      (">" flycheck-next-error)
+      ("?" flycheck-describe-checker :color blue)
+      ("d" flycheck-disable-checker :color blue)
+      ("f" flycheck-buffer)
+      ("l" flycheck-list-errors :color blue)
+      ("m" flycheck-manual :color blue)
+      ("s" flycheck-select-checker :color blue)
+      ("v" flycheck-verify-setup :color blue)))
+  :hook (prog-mode . flycheck-mode))
+
+(use-package flycheck-pos-tip
+  :requires flycheck
+  :config
+  (setq flycheck-pos-tip-timeout 7
+        flycheck-display-errors-delay 0.5
+        flycheck-display-error-messages #'flycheck-pos-tip-error-messages)
+  (flycheck-pos-tip-mode))
+
 (use-package flymake
   :straight f
   :config
@@ -1098,43 +1161,6 @@ _q_ quit           _<_ previous
   :ensure-system-package (npm
                           (tslint . "sudo npm install -g tslint"))
   :hook (typescript-mode . flymake-tslint-load))
-
-(use-package flycheck
-  :config
-  (setq flycheck-check-syntax-automatically '(mode-enabled idle-change save)
-        flycheck-idle-change-delay 2)
-  (setq-default flycheck-disabled-checkers '(html-tidy))
-  (with-eval-after-load 'hydra
-    (defhydra hydra-flycheck (:color pink)
-      "
-^
-^Flycheck^          ^Errors^            ^Checker^
-^────────^──────────^──────^────────────^───────^───────────
-_q_ quit            _<_ previous        _?_ describe
-_m_ manual          _>_ next            _d_ disable
-_v_ verify setup    _f_ check           _s_ select
-^^                  _l_ list            ^^
-^^                  ^^                  ^^
-"
-      ("q" nil)
-      ("<" flycheck-previous-error)
-      (">" flycheck-next-error)
-      ("?" flycheck-describe-checker :color blue)
-      ("d" flycheck-disable-checker :color blue)
-      ("f" flycheck-buffer)
-      ("l" flycheck-list-errors :color blue)
-      ("m" flycheck-manual :color blue)
-      ("s" flycheck-select-checker :color blue)
-      ("v" flycheck-verify-setup :color blue)))
-  :hook (prog-mode . flycheck-mode))
-
-(use-package flycheck-pos-tip
-  :requires flycheck
-  :config
-  (setq flycheck-pos-tip-timeout 7
-        flycheck-display-errors-delay 0.5
-        flycheck-display-error-messages #'flycheck-pos-tip-error-messages)
-  (flycheck-pos-tip-mode))
 
 (use-package fullframe
   ;; Advise a command so that the buffer dislays in a full-frame window.
@@ -1332,7 +1358,7 @@ initialization, it can loop until OS handles are exhausted."
   :diminish
   :bind (("C-x b" . ivy-switch-buffer)
          ("C-x B" . ivy-switch-buffer-other-window)
-         ("M-H"   . ivy-resume))
+         ("C-c C-r" . ivy-resume))
   :bind (:map ivy-minibuffer-map
          ("<tab>" . ivy-alt-done)
          ("SPC"   . ivy-alt-done-or-space)
@@ -1395,14 +1421,19 @@ initialization, it can loop until OS handles are exhausted."
         (insert (replace-regexp-in-string "  +" " " amend)))))
 
   :init
-  (setq ivy-count-format             ""
-        ivy-dynamic-exhibit-delay-ms 200
+  (setq ivy-count-format             "(%d/%d) "
+        ivy-display-style            'fancy
+        ivy-dynamic-exhibit-delay-ms 150
+        ivy-extra-directories        nil     ; don't show ./ and ../
         ivy-height                   10
+        ivy-ignore-buffers           '("company-statistics-cache.el")
         ivy-initial-inputs-alist     nil
         ivy-magic-tilde              nil
         ivy-re-builders-alist        '((t . ivy--regex-ignore-order))
+        ivy-use-ignore-default       'always
         ivy-use-selectable-promnpt   t
         ivy-use-virtual-buffers      t
+        ivy-virtual-abbreviate       'full   ; show full path
         ivy-wrap                     t)
   :config
   (ivy-mode 1)
@@ -1410,17 +1441,30 @@ initialization, it can loop until OS handles are exhausted."
   (with-eval-after-load 'flx
     (setq ivy-re-builders-alist '((t . ivy--regex-fuzzy)))))
 
+(use-package ivy-bibtex
+  ;; Ivy interface for BibTeX entries
+  :after (ivy)
+  :defer t
+  :bind ("C-x b" . ivy-bibtex)
+  :config
+  (setq bibtex-completion-bibliography  '("~/Documents/bib/refs.bib")
+        bibtex-completion-cite-prompt-for-optional-arguments nil
+        bibtex-completion-pdf-field "file"
+        ivy-bibtex-default-action 'ivy-bibtex-insert-citation
+        ivy-re-builders-alist '((ivy-bibtex . ivy--regex-ignore-order)
+                                (t . ivy--regex-plus))))
+
 (use-package ivy-hydra
   :demand t
   :after (ivy hydra))
 
 (use-package ivy-pass
-  :demand t
   :after (ivy)
+  :ensure-system-package pass
+  :demand t
   :commands ivy-pass)
 
 (use-package ivy-rich
-  :demand t
   :after (ivy)
   :config
   (ivy-set-display-transformer 'ivy-switch-buffer
@@ -1428,6 +1472,17 @@ initialization, it can loop until OS handles are exhausted."
   (setq ivy-virtual-abbreviate 'full
         ivy-rich-switch-buffer-align-virtual-buffer t
         ivy-rich-path-style 'abbrev))
+
+(use-package ivy-xref
+  ;; Ivy interface for xref results
+  :after (ivy)
+  :ensure t
+  :config (validate-setq xref-show-xrefs-function #'ivy-xref-show-xrefs))
+
+(use-package ivy-yasnippet
+  ;; Preview yasnippets with Ivy
+  :after (ivy yasnippet)
+  :bind ("C-c y" . ivy-yasnippet))
 
 (use-package jedi-core
   :if (not (eq system-type 'windows-nt))
@@ -2282,6 +2337,11 @@ foo -> &foo[..]"
     (when (string-equal "tsx" (file-name-extension buffer-file-name))
       (my/tide-config)))
   :hook (web-mode . my/web-tsx-config))
+
+(use-package unfill
+  ;; Unfill paragraph/region, toggle between filled & unfilled.
+  ;; https://github.com/purcell/unfill
+  :bind ("M-q" . unfill-toggle))
 
 (use-package web-beautify
   :after (web-mode)
