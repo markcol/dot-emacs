@@ -106,58 +106,6 @@ https://github.com/raxod502/straight.el#the-transaction-system."
 
 (use-package bind-key)
 (use-package diminish)
-
-;; (use-package system-packages
-;;   :preface
-;;   (when (and nil
-;;              (eq system-type 'windows-nt)
-;;              (executable-find "choco"))
-;;     (defun system-packages--run-command (action &optional pack args)
-;;       "Run a command asynchronously using the system's package manager.
-;;   See `system-packages-get-command' for how to use ACTION, PACK,
-;;   and ARGS."
-;;       (let ((command (if (and (eq system-packages-package-manager 'choco)
-;;                               (memq action '(install uninstall update clean-cache)))
-;;                          (format "runas /user:administrator@%s \"%s\""
-;;                                  system-name
-;;                                  (system-packages-get-command action pack args))
-;;                        (system-packages-get-command action pack args)))
-;;             (default-directory (if system-packages-use-sudo
-;;                                    "/sudo::"
-;;                                  default-directory)))
-;;         (if (eq system-type 'windows-nt)
-;;             (progn
-;;               (let ((shell-prompt-pattern "Enter the password for administrator@MHCOLBUR-LAP:")
-;;                     (comint-use-prompt-regexp "Enter the password for administrator@MHCOLBUR-LAP:"))
-;;                 (shell-command command "*system-packages*")
-;;                 (send-invisible "Enter administrator password: ")))
-;;           (async-shell-command command "*system-packages*")))))
-;;   :config
-;;   (when (and nil
-;;              (eq system-type 'windows-nt)
-;;              (executable-find "choco"))
-;;     (add-to-list 'system-packages-supported-package-managers
-;;                  '(choco .
-;;                          ((default-sudo . nil)
-;;                           (install . "choco install --noprogress")
-;;                           (search . "choco search")
-;;                           (uninstall . "choco uninstall")
-;;                           (update . "choco upgrade")
-;;                           (clean-cache . "choco optimize")
-;;                           (log . "type C:/ProgramData/chocolatey/logs/chocolatey.log")
-;;                           (get-info . "choco info")
-;;                           (get-info-remote . "choco info")
-;;                           (list-files-provided-by . "choco info")
-;;                           (verify-all-packages . nil)
-;;                           (verify-all-dependencies . nil)
-;;                           (remove-orphaned . nil)
-;;                           (list-installed-packages . "choco list -lai")
-;;                           (list-installed-packages-all . "choco list -ai")
-;;                           (list-dependencies-of . nil)
-;;                           (noconfirm . "-y"))))
-;;     (setq system-packages-use-sudo nil)
-;;     (setq system-packages-package-manager 'choco)))
-
 (use-package use-package-ensure-system-package)
 (use-package use-package-chords
   :disabled
@@ -695,6 +643,16 @@ Used as hook function for `kill-emacs-hook', because
   :after (rust)
   :hook (rust-mode . cargo-minor-mode))
 
+(use-package cmake-mode
+  :ensure-system-package cmake)
+
+(use-package cmake-project
+  :commands cmake-project-mode
+  :preface
+  (defun my/maybe-cmake-project-hook ()
+    (if (file-exists-p "CMakeLists.txt") (cmake-project-mode)))
+  :hook ((c-mode c++-mode) . my/maybe-cmake-project-hook))
+
 (use-package company
   :bind (:map company-active-map
          ("C-n" . company-select-next-or-abort)
@@ -1085,6 +1043,62 @@ called.")
   :hook (htmlize-after  . my/htmlize-after-hook-fn)
   :hook (prog-mode . turn-on-fci-mode))
 
+(use-package flymake
+  :straight f
+  :config
+  (with-eval-after-load 'hydra
+    (defhydra hydra-flymake (:color pink)
+      "
+^
+^Flymake^          ^Errors^
+^───────^──────────^──────^────
+_q_ quit           _<_ previous
+^^                 _>_ next
+^^                 ^^
+"
+      ("q" nil)
+      ("<" flymake-goto-previous-error)
+      (">" flymake-goto-next-error)))
+  :hook (find-file . flymake-find-file-hook))
+
+(use-package flymake-eslint
+  :disabled
+  :after (flymake js2-mode)
+  :straight (:host github :repo "tjefferson08/flymake-eslint")
+  :ensure-system-package (npm
+                          (eslint . "sudo npm install -g eslint"))
+  :hook (js2-mode . flymake-eslint-load))
+
+(use-package flymake-go
+  :disabled
+  :after (flymake go-mode)
+  :hook (go-mode . flymake-go-load))
+
+(use-package flymake-json
+  :disabled
+  :after (flymake json-mode)
+  :ensure-system-package (npm
+                          (eslint . "sudo npm install -g jsonlint"))
+  :hook (json-mode . flymake-json-load))
+
+(use-package flymake-rust
+  :disabled
+  :after (flymake rust-mode)
+  :hook (rust-mode . flymake-rust-load))
+
+(use-package flymake-shell
+  :disabled
+  :after (flymake shell-mode)
+  :hook (sh-mode . flymake-shell-load))
+
+(use-package flymake-tslint
+  :disabled
+  :after (flymake typescript-mode)
+  :straight (:host github :repo "markcol/flymake-tslint")
+  :ensure-system-package (npm
+                          (tslint . "sudo npm install -g tslint"))
+  :hook (typescript-mode . flymake-tslint-load))
+
 (use-package flycheck
   :config
   (setq flycheck-check-syntax-automatically '(mode-enabled idle-change save)
@@ -1115,7 +1129,7 @@ _v_ verify setup    _f_ check           _s_ select
   :hook (prog-mode . flycheck-mode))
 
 (use-package flycheck-pos-tip
-  :after (flycheck)
+  :requires flycheck
   :config
   (setq flycheck-pos-tip-timeout 7
         flycheck-display-errors-delay 0.5
@@ -1235,10 +1249,9 @@ initialization, it can loop until OS handles are exhausted."
     (if my/ongoing-hydra-body
         (funcall my/ongoing-hydra-body)
       (user-error "Function my/ongoing-hydra: my/ongoing-hydra-body is not set")))
-  :bind
-  ("C-c f" . hydra-flycheck/body)
-  ("C-c g" . hydra-magit/body)
-  ("C-c p" . hydra-projectile/body)
+  :bind (;;("C-c f" . hydra-flycheck/body)
+         ("C-c g" . hydra-magit/body)
+         ("C-c p" . hydra-projectile/body))
   :config
   (setq-default hydra-default-hint nil))
 
@@ -1432,7 +1445,6 @@ initialization, it can loop until OS handles are exhausted."
          ("=" . pad-equals)
          (":" . self-with-space))
   :interpreter ("node" . js2-mode)
-  :ensure-system-package (eslint_d . "npm install -g eslint_d")
   :init
   (setq js2-mode-show-strict-warnings nil
         js2-highlight-level           3)
@@ -1774,9 +1786,9 @@ _q_ quit            _i_ insert          _<_ previous
 
 (use-package org-sidebar
   :after (org)
-  :requires (org-agenda-ng org-ql)
   :straight (org-sidebar :host github :repo "alphapapa/org-sidebar")
   :commands (org-sidebar)
+  :requires (org-ql org-agenda-ng)
   :bind ("C-c o s" . org-sidebar))
 
 (use-package paredit
@@ -1824,7 +1836,8 @@ _q_ quit            _i_ insert          _<_ previous
   :after js2-mode
   :bind (:map js2-mode-map
          ("s-b" . prettier))
-  :ensure-system-package (prettier . "npm i -g prettier")
+  :ensure-system-package (npm
+                          (prettier . "sudo npm i -g prettier"))
   :init
   (setq prettier-args '("--no-semi" "--trailing-comma" "all")))
 
@@ -1904,15 +1917,15 @@ _i_ reset cache     _K_ kill all        _D_ root            _R_ regexp replace
        :mode 'python-mode
        :regexp "[a-zA-Z_0-9.]+"
        :doc-spec
-        '(("(python)Python Module Index" )
-          ("(python)Index"
-           (lambda
-             (item)
-             (cond
-              ((string-match
-                "\\([A-Za-z0-9_]+\\)() (in module \\([A-Za-z0-9_.]+\\))" item)
-               (format "%s.%s" (match-string 2 item)
-                       (match-string 1 item)))))))))
+       '(("(python)Python Module Index" )
+         ("(python)Index"
+          (lambda
+            (item)
+            (cond
+             ((string-match
+               "\\([A-Za-z0-9_]+\\)() (in module \\([A-Za-z0-9_.]+\\))" item)
+              (format "%s.%s" (match-string 2 item)
+                      (match-string 1 item)))))))))
     (setq python-shell-prompt-detect-failure-warning nil
           indent-tabs-mode nil)
     (set (make-local-variable 'parens-require-spaces) nil))
@@ -2048,8 +2061,6 @@ foo -> &foo[..]"
   (defun my/rust-mode-config ()
     "My Rust-mode configuration."
     (eldoc-mode)
-    (when (featurep 'flycheck)
-      (flycheck-mode 1))
     (lsp-ui-mode)
     (company-mode)
     (set (make-local-variable 'company-backends)
@@ -2075,11 +2086,12 @@ foo -> &foo[..]"
 
 (use-package scss-mode
   :mode ("\\.s[ac]ss\\'")
+  :ensure-system-package (sass . "sudo npm install -g scss")
   :preface
-  (defun my/scss-set-comment-style ()
+  (defun my/scss-mode-config ()
     (setq-local comment-end "")
     (setq-local comment-start "//"))
-  :hook (scss-mode . my/scss-set-comment-style))
+  :hook (scss-mode . my/scss-mode-config))
 
 (use-package server
   :preface
@@ -2245,10 +2257,13 @@ foo -> &foo[..]"
   :bind (("C-c t P" . treemacs-projectile)
          ("C-c t p" . treemacs-projectile-toggle))
   :config
-  (setq treemacs-header-function #'treemacs-projectile-create-header))
+  (with-eval-after-load 'projectile
+    (setq treemacs-header-function #'treemacs-projectile-create-header)))
 
 (use-package ts-comint
   :after typescript-mode
+  :ensure-system-package (node
+                          (tsun . "sudo npm install -g tsun"))
   :bind (:map typescript-mode-map
          ("C-x C-e" . ts-send-last-sexp)
          ("C-M-x"   . ts-send-last-sexp-and-go)
@@ -2259,6 +2274,8 @@ foo -> &foo[..]"
 (use-package typescript-mode
   :mode (("\\.ts\\'"  . typescript-mode)
          ("\\.tsx\\'" . web-mode))
+  :ensure-system-package (node
+                          (tsc . "sudo npm install -g typescript"))
   :preface
   (defun my/web-tsx-config ()
     "tsx configuration."
@@ -2267,11 +2284,13 @@ foo -> &foo[..]"
   :hook (web-mode . my/web-tsx-config))
 
 (use-package web-beautify
+  :after (web-mode)
   :bind ((:map sgml-mode-map
           ("s-b" . web-beautify-html))
          (:map css-mode-map
           ("s-b" . web-beautify-css)))
-  :ensure-system-package (js-beautify . "npm i -g js-beautify"))
+  :ensure-system-package (npm
+                          (js-beautify . "sudo npm install -g js-beautify")))
 
 (use-package web-mode
   :mode ("\\.html?\\'"

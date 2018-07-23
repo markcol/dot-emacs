@@ -19,6 +19,7 @@
  '(custom-safe-themes
    '("3c83b3676d796422704082049fc38b6966bcad960f896669dfc21a7a37a748fa" default))
  '(delete-by-moving-to-trash t)
+ '(flymake-tslint-args nil)
  '(global-auto-complete-mode t)
  '(global-auto-revert-mode t)
  '(global-font-lock-mode t nil (font-lock))
