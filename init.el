@@ -146,6 +146,7 @@ https://github.com/raxod502/straight.el#the-transaction-system."
 (show-paren-mode 1)
 (size-indication-mode 1)
 (delete-selection-mode 1)
+(mouse-wheel-mode 1)
 
 (setq auto-revert-verbose             nil ; no messages about reverted files
       auto-save-default               nil
@@ -510,6 +511,20 @@ different font size based on relative apperance."
   :config
   (all-the-icons-ivy-setup))
 
+(when (memq window-system '(mac ns))
+  ;; Mac-specific settings
+  (setq mac-option-modifier       nil
+        mac-command-modifier      'meta
+        x-select-enable-clipboard t
+        ns-use-native-fullscreen  nil
+        alert-default-style       'growl)
+  (menu-bar-mode 1)
+  (when (executable-find "python3")
+    (setq-default org-babel-python-command "python3"))
+  (setenv "LC_ALL"   "en_US.UTF-8")
+  (setenv "LC_CTYPE" "en_US.UTF-8")
+  (setenv "LANG"     "en_US.UTF-8"))
+
 (defvar my/theme-name 'afternoon
   "Name of preferred theme to use.")
 
@@ -533,6 +548,7 @@ different font size based on relative apperance."
      `(org-block-begin-line ((t (:underline "#a7a6aa" :height 0.8)))))
     (setq powerline-default-separator 'arrow-fade)
     (setq-default cursor-type 'box))
+
   (load-theme my/theme-name t)
   (spaceline-emacs-theme))
 
@@ -1426,7 +1442,6 @@ initialization, it can loop until OS handles are exhausted."
         ivy-dynamic-exhibit-delay-ms 150
         ivy-extra-directories        nil     ; don't show ./ and ../
         ivy-height                   10
-        ivy-ignore-buffers           '("company-statistics-cache.el")
         ivy-initial-inputs-alist     nil
         ivy-magic-tilde              nil
         ivy-re-builders-alist        '((t . ivy--regex-ignore-order))
@@ -1445,14 +1460,22 @@ initialization, it can loop until OS handles are exhausted."
   ;; Ivy interface for BibTeX entries
   :after (ivy)
   :defer t
-  :bind ("C-x b" . ivy-bibtex)
   :config
-  (setq bibtex-completion-bibliography  '("~/Documents/bib/refs.bib")
+  (setq bibtex-completion-bibliography  '("~/Documents/bibtex/refs.bib")
         bibtex-completion-cite-prompt-for-optional-arguments nil
-        bibtex-completion-pdf-field "file"
-        ivy-bibtex-default-action 'ivy-bibtex-insert-citation
-        ivy-re-builders-alist '((ivy-bibtex . ivy--regex-ignore-order)
-                                (t . ivy--regex-plus))))
+        bibtex-completion-pdf-field     "file"
+        ivy-bibtex-default-action       'ivy-bibtex-insert-citation
+        ivy-re-builders-alist           '((ivy-bibtex . ivy--regex-ignore-order)
+                                          (t . ivy--regex-plus))))
+
+(use-package gitlab
+  :demand t
+  :init
+  (setq gilab-host "https://gitlab.com"))
+
+(use-package ivy-gitlab
+  :demand t
+  :after (ivy))
 
 (use-package ivy-hydra
   :demand t
