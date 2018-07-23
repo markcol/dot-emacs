@@ -1,4 +1,4 @@
-:;;; init.el --- Emacs init file -*- lexical-binding: t; no-byte-compile: t; -*-
+;;; init.el --- Emacs init file -*- lexical-binding: t; no-byte-compile: t; -*-
 
 ;;; Commentary:
 
@@ -481,7 +481,9 @@ Any ARGS passed in are ignored."
                              ("3270-Medium" . 0))
   "List of preferred (font-name . point-size-adjustment) in priority order.")
 
-(defvar my/installed-fonts (filter (lambda (x) (find-font (font-spec :name (car x)))) my/preferred-fonts)
+(defvar my/installed-fonts (filter (lambda (x)
+                                     (find-font (font-spec :name (car x))))
+                                   my/preferred-fonts)
   "List of installed (font-name . point-size-adjustment) in priority order.")
 
 (defun my/font-spec (size)
@@ -501,13 +503,11 @@ different font size based on relative apperance."
   :after (ivy)
   :init
   (setq all-the-icons-ivy-file-commands
-        '(
-          counsel-file-jump
+        '(counsel-file-jump
           counsel-find-file
           counsel-projectile-find-dir
           counsel-projectile-find-file
-          counsel-recentf
-          ))
+          counsel-recentf))
   :config
   (all-the-icons-ivy-setup))
 
@@ -595,11 +595,10 @@ different font size based on relative apperance."
          ([remap isearch-query-replace]  . anzu-isearch-query-replace)
          ([remap isearch-query-replace-regexp]  . anzu-isearch-query-replace-regexp))
   :init
-  (setq anzu-mode-lighter ""
-	anzu-deactivate-region t
-	anzu-search-threshold 1000
-	anzu-replace-threshold 50
-	anzu-replace-to-string-separator " => ")
+  (setq anzu-deactivate-region t
+        anzu-search-threshold 1000
+        anzu-replace-threshold 50
+        anzu-replace-to-string-separator " => ")
   :config
   (global-anzu-mode +1))
 
@@ -678,6 +677,10 @@ Used as hook function for `kill-emacs-hook', because
 
 (use-package cargo
   :after (rust)
+  :bind (:map rust-mode-map
+         ("C-c C-b" . cargo-process-build)
+         ("C-c C-v" . cargo-process-bench)
+         ("C-c C-t" . cargo-process-test))
   :hook (rust-mode . cargo-minor-mode))
 
 (use-package cmake-mode
@@ -735,7 +738,6 @@ Used as hook function for `kill-emacs-hook', because
          ("C-h u"    . counsel-unicode-char)
          ("C-c k"    . counsel-rg)
          ("C-x l"    . counsel-locate)
-         ("C-c g"    . counsel-git-grep)
          ("C-c h i"  . counsel-imenu)
          ("C-x p"    . counsel-list-processes)
          ("M-y"      . counsel-yank-pop))
@@ -1249,11 +1251,20 @@ initialization, it can loop until OS handles are exhausted."
     (interactive)
     (github-issues "new")))
 
-(use-package gitignore-mode
-  :defer t)
+(use-package github-search
+  :demand t)
 
 (use-package gitignore-mode
   :mode ("\\.gitignore\\'" . gitignore-mode))
+
+(use-package gitlab
+  :demand t
+  :init
+  (setq gilab-host "https://gitlab.com"))
+
+(use-package glab
+  :demand t
+  :after (gitlab))
 
 (use-package google-this
   :bind-keymap ("C-c /" . google-this-mode-submap)
@@ -1367,6 +1378,7 @@ initialization, it can loop until OS handles are exhausted."
     (call-interactively 'isearch-forward)))
 
 (use-package ispell
+  :ensure-system-package aspell
   :no-require t)
 
 (use-package ivy
@@ -1468,14 +1480,9 @@ initialization, it can loop until OS handles are exhausted."
         ivy-re-builders-alist           '((ivy-bibtex . ivy--regex-ignore-order)
                                           (t . ivy--regex-plus))))
 
-(use-package gitlab
-  :demand t
-  :init
-  (setq gilab-host "https://gitlab.com"))
-
 (use-package ivy-gitlab
   :demand t
-  :after (ivy))
+  :after (ivy gitlab))
 
 (use-package ivy-hydra
   :demand t
@@ -1657,8 +1664,9 @@ _q_ quit            _a_ amend
 
 (use-package magithub
   :disabled
+  :if (executable-find "hub")
+  :after (:all magithub ghub ghub+)
   :after magit
-  :ensure-system-package hub
   :config
   (magithub-feature-autoinject t))
 
@@ -2294,6 +2302,14 @@ foo -> &foo[..]"
 
 (use-package toml-mode
   :mode "\\.toml\\'")
+
+(use-package travis
+  :demand t
+  :preface
+  (defun my/travis-show-projects ()
+    "Display the status of my projects on Travis.ci."
+    (interactive)
+    (travis-show-projects "markcol")))
 
 (use-package treemacs
   :commands (treemacs)
