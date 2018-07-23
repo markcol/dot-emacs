@@ -1,4 +1,4 @@
-;;; init.el --- Emacs init file -*- lexical-binding: t; no-byte-compile: t; -*-
+:;;; init.el --- Emacs init file -*- lexical-binding: t; no-byte-compile: t; -*-
 
 ;;; Commentary:
 
@@ -1476,8 +1476,8 @@ initialization, it can loop until OS handles are exhausted."
 (use-package ivy-xref
   ;; Ivy interface for xref results
   :after (ivy)
-  :ensure t
-  :config (validate-setq xref-show-xrefs-function #'ivy-xref-show-xrefs))
+  :config
+  (setq xref-show-xrefs-function #'ivy-xref-show-xrefs))
 
 (use-package ivy-yasnippet
   ;; Preview yasnippets with Ivy
