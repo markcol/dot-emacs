@@ -1116,7 +1116,13 @@ _v_ verify setup    _f_ check           _s_ select
       ("v" flycheck-verify-setup :color blue)))
   :hook (prog-mode . flycheck-mode))
 
+(use-package flycheck-inline
+  :requires flycheck
+  :config
+  (flycheck-inline-mode))
+
 (use-package flycheck-pos-tip
+  :disabled
   :requires flycheck
   :config
   (setq flycheck-pos-tip-timeout 7
