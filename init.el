@@ -1147,7 +1147,7 @@ _q_ quit           _<_ previous
   :after (flymake js2-mode)
   :straight (:host github :repo "tjefferson08/flymake-eslint")
   :ensure-system-package (npm
-                          (eslint . "sudo npm install -g eslint"))
+                          (eslint . "npm install -g eslint"))
   :hook (js2-mode . flymake-eslint-load))
 
 (use-package flymake-go
@@ -1159,7 +1159,7 @@ _q_ quit           _<_ previous
   :disabled
   :after (flymake json-mode)
   :ensure-system-package (npm
-                          (eslint . "sudo npm install -g jsonlint"))
+                          (eslint . "npm install -g jsonlint"))
   :hook (json-mode . flymake-json-load))
 
 (use-package flymake-rust
@@ -1177,7 +1177,7 @@ _q_ quit           _<_ previous
   :after (flymake typescript-mode)
   :straight (:host github :repo "markcol/flymake-tslint")
   :ensure-system-package (npm
-                          (tslint . "sudo npm install -g tslint"))
+                          (tslint . "npm install -g tslint"))
   :hook (typescript-mode . flymake-tslint-load))
 
 (use-package fullframe
@@ -1923,7 +1923,7 @@ _q_ quit            _i_ insert          _<_ previous
   :bind (:map js2-mode-map
          ("s-b" . prettier))
   :ensure-system-package (npm
-                          (prettier . "sudo npm i -g prettier"))
+                          (prettier . "npm i -g prettier"))
   :init
   (setq prettier-args '("--no-semi" "--trailing-comma" "all")))
 
@@ -2172,7 +2172,7 @@ foo -> &foo[..]"
 
 (use-package scss-mode
   :mode ("\\.s[ac]ss\\'")
-  :ensure-system-package (sass . "sudo npm install -g scss")
+  :ensure-system-package (sass . "npm install -g scss")
   :preface
   (defun my/scss-mode-config ()
     (setq-local comment-end "")
@@ -2357,7 +2357,7 @@ foo -> &foo[..]"
 (use-package ts-comint
   :after typescript-mode
   :ensure-system-package (node
-                          (tsun . "sudo npm install -g tsun"))
+                          (tsun . "npm install -g tsun"))
   :bind (:map typescript-mode-map
          ("C-x C-e" . ts-send-last-sexp)
          ("C-M-x"   . ts-send-last-sexp-and-go)
@@ -2369,7 +2369,7 @@ foo -> &foo[..]"
   :mode (("\\.ts\\'"  . typescript-mode)
          ("\\.tsx\\'" . web-mode))
   :ensure-system-package (node
-                          (tsc . "sudo npm install -g typescript"))
+                          (tsc . "npm install -g typescript"))
   :preface
   (defun my/web-tsx-config ()
     "tsx configuration."
@@ -2389,7 +2389,7 @@ foo -> &foo[..]"
          (:map css-mode-map
           ("s-b" . web-beautify-css)))
   :ensure-system-package (npm
-                          (js-beautify . "sudo npm install -g js-beautify")))
+                          (js-beautify . "npm install -g js-beautify")))
 
 (use-package web-mode
   :mode ("\\.html?\\'"
