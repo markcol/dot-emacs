@@ -432,8 +432,10 @@ errors)."
 (use-package epl             :defer t)
 (use-package f               :defer t)
 (use-package fringe-helper   :defer t)
+(use-package fullframe       :defer t)
 (use-package ghub            :defer t)
 (use-package ghub+           :defer t)
+(use-package gist            :defer t)
 (use-package ht              :defer t)
 (use-package loop            :defer t)
 (use-package marshal         :defer t)
@@ -453,10 +455,10 @@ errors)."
 (use-package with-editor     :defer t)
 (use-package xml-rpc         :defer t)
 
+
 ;;;
 ;;; UI
 ;;;
-
 
 (defun my/unload-themes (&rest args)
   "Unload any loaded custom themes.
@@ -821,9 +823,8 @@ Used as hook function for `kill-emacs-hook', because
   :bind ("C-c e v" . edit-variable))
 
 (use-package editorconfig
-  :disabled
+  :ensure-system-package "EditorConfig"
   :if (file-exists-p (expand-file-name ".editorconfig" (getenv "HOME")))
-  ;; :ensure-system-package "EditorConfig"
   :defer t
   :config
   ;; Always the built-in core library instead of any EditorConfig executable to get properties.
@@ -1092,6 +1093,8 @@ called.")
   (setq flycheck-check-syntax-automatically '(mode-enabled idle-change save)
         flycheck-idle-change-delay 2)
   (setq-default flycheck-disabled-checkers '(html-tidy))
+  (with-eval-after-load 'rust-mode
+    (add-hook 'flycheck-mode-hook #'flycheck-rust-setup))
   (with-eval-after-load 'hydra
     (defhydra hydra-flycheck (:color pink)
       "
@@ -1118,17 +1121,22 @@ _v_ verify setup    _f_ check           _s_ select
 
 (use-package flycheck-inline
   :requires flycheck
+  :preface
+  ;; You can change the way overlays are created by customizing
+  ;; `flycheck-inline-display-function' and
+  ;; `flychjeck-inline-clear-function'. Here is an example using
+  ;; `quick-peek' to display the overlays which adds bars around them:
+  (use-package quick-peek :defer t)
+  (setq flycheck-inline-display-function
+        (lambda (msg pos)
+          (let* ((ov (quick-peek-overlay-ensure-at pos))
+                 (contents (quick-peek-overlay-contents ov)))
+            (setf (quick-peek-overlay-contents ov)
+                  (concat contents (when contents "\n") msg))
+            (quick-peek-update ov)))
+        flycheck-inline-clear-function #'quick-peek-hide)
   :config
   (flycheck-inline-mode))
-
-(use-package flycheck-pos-tip
-  :disabled
-  :requires flycheck
-  :config
-  (setq flycheck-pos-tip-timeout 7
-        flycheck-display-errors-delay 0.5
-        flycheck-display-error-messages #'flycheck-pos-tip-error-messages)
-  (flycheck-pos-tip-mode))
 
 (use-package flymake
   :straight f
@@ -1147,50 +1155,6 @@ _q_ quit           _<_ previous
       ("<" flymake-goto-previous-error)
       (">" flymake-goto-next-error)))
   :hook (find-file . flymake-find-file-hook))
-
-(use-package flymake-eslint
-  :disabled
-  :after (flymake js2-mode)
-  :straight (:host github :repo "tjefferson08/flymake-eslint")
-  :ensure-system-package (npm
-                          (eslint . "npm install -g eslint"))
-  :hook (js2-mode . flymake-eslint-load))
-
-(use-package flymake-go
-  :disabled
-  :after (flymake go-mode)
-  :hook (go-mode . flymake-go-load))
-
-(use-package flymake-json
-  :disabled
-  :after (flymake json-mode)
-  :ensure-system-package (npm
-                          (eslint . "npm install -g jsonlint"))
-  :hook (json-mode . flymake-json-load))
-
-(use-package flymake-rust
-  :disabled
-  :after (flymake rust-mode)
-  :hook (rust-mode . flymake-rust-load))
-
-(use-package flymake-shell
-  :disabled
-  :after (flymake shell-mode)
-  :hook (sh-mode . flymake-shell-load))
-
-(use-package flymake-tslint
-  :disabled
-  :after (flymake typescript-mode)
-  :straight (:host github :repo "markcol/flymake-tslint")
-  :ensure-system-package (npm
-                          (tslint . "npm install -g tslint"))
-  :hook (typescript-mode . flymake-tslint-load))
-
-(use-package fullframe
-  ;; Advise a command so that the buffer dislays in a full-frame window.
-  :defer t)
-
-(use-package gist :defer t)
 
 (use-package git-commit
   :commands global-git-commit-mode
@@ -1669,10 +1633,8 @@ _q_ quit            _a_ amend
       ("s" magit-status))))
 
 (use-package magithub
-  :disabled
   :if (executable-find "hub")
   :after (:all magithub ghub ghub+)
-  :after magit
   :config
   (magithub-feature-autoinject t))
 
