@@ -201,6 +201,28 @@ https://github.com/raxod502/straight.el#the-transaction-system."
 ;;; Functions
 ;;;
 
+(defun my/get-buffers-with-minor-mode (minor-mode)
+  "Return the list of buffers in which MINOR-MODE is active."
+  (interactive)
+  (let ((minor-mode-buffers))
+    (dolist (buffer (buffer-list) minor-mode-buffers)
+      (when (memq minor-mode (my/get-active-minor-modes buffer))
+        (push buffer minor-mode-buffers)))))
+
+(defun my/get-active-minor-modes (&optional buffer)
+  "Return list of minor modes active in the current buffer.
+
+ If BUFFER is non-nil, it is searched instead the current buffer."
+  (interactive)
+  (let ((buffer (or buffer (current-buffer)))
+        (active-modes))
+    (with-current-buffer buffer
+      (dolist (mode minor-mode-list active-modes)
+        (condition-case nil
+            (if (and (symbolp mode) (symbol-value mode))
+                (add-to-list 'active-modes mode))
+          (error nil))))))
+
 (defun ensure-space (direction)
   "Ensure that there is a space in the given DIRECTION."
   (let* ((char-fn (cond
@@ -293,8 +315,7 @@ not at the end of the line, then comment current line. Replaces
 default behaviour of `comment-dwim', when it inserts comment at the
 end of the line.
 
-ARG is passed to the `comment-dwim' function
-but is not used."
+ARG is passed to the `comment-dwim' function but is not used."
   (interactive "*P")
   (comment-normalize-vars)
   (if (and (not (region-active-p))
@@ -415,11 +436,10 @@ errors)."
 ;;; Key Bindings
 ;;;
 
-(bind-key "M-;"     #'my/comment-dwim-line)
+(bind-key [remap comment-dwim] #'my/comment-dwim-line)
 (bind-key "C-c n"   #'my/narrow-or-widen-dwim)
 (bind-key "C-x C-b" #'ibuffer)
 (bind-key "C-x C-r" #'revert-buffer)
-(bind-key "M-:"     #'pp-eval-expression)
 
 ;;;
 ;;; Libraries
@@ -776,7 +796,6 @@ Used as hook function for `kill-emacs-hook', because
 
 (use-package dash-at-point
   :if (eq system-type 'darwin)
-  :defer t
   :ensure-system-package dash)
 
 (use-package dired
@@ -799,7 +818,7 @@ Used as hook function for `kill-emacs-hook', because
   ;; http://john.mercouris.online/emacs-database-interface.html
   ;; https://metacpan.org/pod/DBI#connect
   :disabled
-  :if (executable-find "perl")
+  :ensure-system-package (perl)
   ;; :ensure-system-package ((DBI               . "cpan install DBI")
   ;;                         (RPC::EPC::Service . "cpan install RPC::EPC::Service")
   ;;                         (DBD::SQLite       . "cpan install DBD::SQLite")
@@ -910,6 +929,8 @@ Used as hook function for `kill-emacs-hook', because
 
 (use-package emacs-lisp-mode
   :straight f
+  :bind (:map emacs-lisp-mode-map
+         ("M-:" . pp-eval-expression))
   :preface
   ;;; More sensible indentation of multiline lists containing symbols.
   ;;; See: https://emacs.stackexchange.com/questions/10230/how-to-indent-keywords-aligned
@@ -1032,12 +1053,17 @@ Lisp function does not specify a special indentation."
   :bind ("C-c v" . ffap))
 
 (use-package fill-column-indicator
+  :defer t
   :preface
   (defvar my/htmlize-initial-fci-state nil
     "Variable to store state of `fci-mode' when `htmlize-buffer' is called.")
+
   (defvar my/htmlize-initial-flyspell-state nil
     "Variable to store state of `flyspell-mode' when `htmlize-buffer' is
 called.")
+
+  (defvar my/fci-status nil
+    "Holds current FCI status.")
 
   (defun my/disable-fci-temporarily (orig-fun &rest args)
     "Disable fci-mode before calling ORIG-FUN with ARGS; re-enable afterwards."
@@ -1045,54 +1071,62 @@ called.")
 
   ;; Fix for htmlize producing garbage newlines when using fci-mode.
   (defun my/htmlize-before-hook-fn ()
-    (when (fboundp 'fci-mode)
+    (when (fboundp 'flyspell-mode)
       (setq my/htmlize-initial-fci-state fci-mode)
       (when fci-mode
-        (turn-off-fci-mode)))
-    (when (fboundp 'flyspell-mode)
+        (turn-off-fci-mode))
       (setq my/htmlize-initial-flyspell-state flyspell-mode)
       (when flyspell-mode
         (flyspell-mode -1))))
 
   (defun my/htmlize-after-hook-fn ()
-    (when (fboundp 'fci-mode)
-      (when my/htmlize-initial-fci-state
-        (turn-on-fci-mode)))
     (when (fboundp 'flyspell-mode)
+      (when my/htmlize-initial-fci-state
+        (turn-on-fci-mode))
       (when my/htmlize-initial-flyspell-state
         (flyspell-mode 1))))
 
-  (defvar my/fci-status nil
-    "Holds current FCI status.")
-
   (defun my/disable-fci-during-company-complete (command)
     "Fixes the issue where the first item is shown far off to the right."
-    (when (fboundp 'fci-mode)
-      (when (string= "show" command)
-        (setq my/fci-status fci-mode)
-        (turn-off-fci-mode))
-      (when (string= "hide" command)
-        (when my/fci-status
-          (turn-on-fci-mode)))))
-  :config
-  (let ((color "#303030"))
-    (setq fci-rule-color color
-          fci-rule-character-color color))
+    (when (string= "show" command)
+      (setq my/fci-status fci-mode)
+      (turn-off-fci-mode))
+    (when (string= "hide" command)
+      (when my/fci-status
+        (turn-on-fci-mode))))
 
-  (with-eval-after-load 'company
-    (advice-add 'company-call-frontends :before #'my/disable-fci-during-company-complete))
-  (with-eval-after-load 'shell
-    (advice-add 'shell-command :around #'my/disable-fci-temporarily)
-    (advice-add 'shell-command-on-region :around #'my/disable-fci-temporarily))
-  :hook (htmlize-before . my/htmlize-before-hook-fn)
-  :hook (htmlize-after  . my/htmlize-after-hook-fn)
+  (defun my/change-fci-rule-color (color &optional only-current)
+    "Changes the `fill-column-indicator' color to COLOR for all
+existing and future buffers. Both `fci-rule-color' and
+`fci-rule-character-color' are set.
+
+If ONLY-CURRENT is non-nil, the color change will only be appled
+to the current buffer. Existing and future buffers will retain
+the current color setting."
+    (let ((buffers  (if only-current
+                        (list (current-buffer))
+                      (my/get-buffers-with-minor-mode 'fci-mode))))
+      (dolist (buffer buffers)
+        (with-current-buffer buffer
+          ;; change the local color for all active buffers
+          (setq-local fci-rule-color color)
+          (setq-local fci-rule-character-color color)
+          ;; color changes do not take effect until `fci-mode' is run
+          (fci-mode fci-mode)))
+      (when (not only-current)
+        ;; change the global default color for all buffers
+        (setq-default fci-rule-color color
+                      fci-rule-character-color color))))
+  :config
+  (my/change-fci-rule-color "#2f2f2f")
   :hook (prog-mode . turn-on-fci-mode))
 
 (use-package flycheck
-  :config
+  :init
   (setq flycheck-check-syntax-automatically '(mode-enabled idle-change save)
         flycheck-idle-change-delay 2)
   (setq-default flycheck-disabled-checkers '(html-tidy))
+  :config
   (with-eval-after-load 'rust-mode
     (add-hook 'flycheck-mode-hook #'flycheck-rust-setup))
   (with-eval-after-load 'hydra
@@ -1849,9 +1883,11 @@ _q_ quit            _i_ insert          _<_ previous
   :diminish
   :commands (paredit-mode paredit-backward-delete paredit-close-round paredit-newline)
   :bind (:map lisp-mode-map
-         ("<return>" . paredit-newline))
+         ("<return>" . paredit-newline)
+         ([remap comment-dwim] . paredit-comment-dwim))
   :bind (:map emacs-lisp-mode-map
-         ("<return>" . paredit-newline))
+         ("<return>" . paredit-newline)
+         ([remap comment-dwim] . paredit-comment-dwim))
   :preface
   (defun my/paredit-mode-config ()
     "My paredit mode customizations."
@@ -2337,7 +2373,8 @@ foo -> &foo[..]"
   :mode (("\\.ts\\'"  . typescript-mode)
          ("\\.tsx\\'" . web-mode))
   :ensure-system-package (node
-                          (tsc . "npm install -g typescript"))
+                          (tsc . "npm install -g typescript")
+                          (tslint . "npm install -g --save-dev tslint tslint-config-standard tslint-eslint-rules"))
   :preface
   (defun my/web-tsx-config ()
     "tsx configuration."
@@ -2405,7 +2442,6 @@ foo -> &foo[..]"
 
 (use-package zeal-at-point
   :if (memq system-type '(gnu/linux))
-  :defer t
   :ensure-system-package zeal)
 
 ;;;[END_USE_PACKAGE]
