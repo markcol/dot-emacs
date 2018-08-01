@@ -153,6 +153,7 @@ https://github.com/raxod502/straight.el#the-transaction-system."
 
 (load (expand-file-name "settings" user-emacs-directory) :noerror)
 
+(setq show-paren-delay 0)
 (show-paren-mode 1)
 (size-indication-mode 1)
 (delete-selection-mode 1)
@@ -536,8 +537,17 @@ different font size based on relative apperance."
         (format "%s-%d" name (+ size adj)))
     (format "Courier-%d" size)))
 
-(use-package afternoon-theme)
-(use-package spaceline)
+(defvar my/theme-name 'material
+  "Name of preferred theme to use.")
+
+(use-package material-theme)
+(use-package spaceline
+  :init
+  (setq powerline-default-separator 'arrow)
+  :config
+  (spaceline-emacs-theme)
+  (spaceline-toggle-minor-modes-off)
+  (spaceline-toggle-buffer-size-off))
 (use-package all-the-icons)
 (use-package all-the-icons-ivy
   :after (ivy)
@@ -564,9 +574,6 @@ different font size based on relative apperance."
   (setenv "LC_ALL"   "en_US.UTF-8")
   (setenv "LC_CTYPE" "en_US.UTF-8")
   (setenv "LANG"     "en_US.UTF-8"))
-
-(defvar my/theme-name 'afternoon
-  "Name of preferred theme to use.")
 
 (defun my/apply-ui-settings (&rest frame)
   "Setup the UI settings for a newly created FRAME."
@@ -762,7 +769,7 @@ Used as hook function for `kill-emacs-hook', because
       (lsp--set-configuration lsp-cfg)))
   :hook (lsp-after-initialize . my/lsp-set-cfg)
   :config
-  (push 'copany-lsp company-backends))
+  (push 'company-lsp company-backends))
 
 (use-package compile
   :defer t
@@ -846,6 +853,10 @@ Used as hook function for `kill-emacs-hook', because
   (setq-default dired-details-hidden-string "--- ")
   :config
   (dired-details-install))
+
+(use-package ecb
+  :config
+  (require 'ecb-autoloads))
 
 (use-package edbi
   ;; Emacs Database Interface
@@ -1109,10 +1120,11 @@ Lisp function does not specify a special indentation."
   :bind ("C-=" . er/expand-region))
 
 (use-package ffap
+  :defer t
   :bind ("C-c v" . ffap))
 
 (use-package fill-column-indicator
-  :defer t
+  :defer 1
   :preface
   (defvar my/htmlize-initial-fci-state nil
     "Variable to store state of `fci-mode' when `htmlize-buffer' is called.")
@@ -1176,8 +1188,6 @@ the current color setting."
         ;; change the global default color for all buffers
         (setq-default fci-rule-color color
                       fci-rule-character-color color))))
-  :config
-  (my/change-fci-rule-color "#2f2f2f")
   :hook (prog-mode . turn-on-fci-mode))
 
 (use-package flycheck
@@ -2406,6 +2416,10 @@ foo -> &foo[..]"
 (use-package toml-mode
   :mode "\\.toml\\'")
 
+(use-package tramp
+  :defer t
+  :straight f)
+
 (use-package travis
   :demand t
   :preface
@@ -2506,6 +2520,9 @@ foo -> &foo[..]"
 (use-package which-key
   :defer 5
   :diminish
+  :init
+  (setq which-key-separator " "
+        which-key-prefix    "+")
   :config
   (which-key-mode)
   (dolist (prefix '("projectile-switch-project" "ember" "magit" "projectile"))
@@ -2526,7 +2543,7 @@ foo -> &foo[..]"
   :mode "\\.ya?ml\\'")
 
 (use-package yasnippet
-  :defer t
+  :defer 5
   :diminish yas-minor-mode
   :mode ("/\\.emacs\\.d/snippets" . snippet-mode)
   :bind (:map yas-keymap
