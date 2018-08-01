@@ -1,4 +1,4 @@
-;;; init.el --- Emacs init file -*- lexical-binding: t; no-byte-compile: t; -*-
+;; init.el --- Emacs init file -*- lexical-binding: t; no-byte-compile: t; -*-
 
 ;;; Commentary:
 
@@ -80,6 +80,9 @@
       (eval-print-last-sexp)))
   (load bootstrap-file nil 'nomessage))
 
+(eval-when-compile
+  (require 'straight))
+
 (defun my/wrap-in-straight-transaction (orig-fn &rest args)
   "Wrap ORIG-FN in a straight.el transaction.
 
@@ -117,6 +120,12 @@ https://github.com/raxod502/straight.el#the-transaction-system."
   ;;           ("jl" . ace-jump-line-mode)))
   (key-chord-mode 1))
 
+(eval-when-compile
+  (require 'use-package)
+  (require 'bind-key)
+  (require 'diminish))
+
+
 ;;;
 ;;; Settings
 ;;;
@@ -129,6 +138,7 @@ https://github.com/raxod502/straight.el#the-transaction-system."
 
 ;; Needs to be used before importing settings.el
 (use-package no-littering
+  :defines (no-littering-var-directory no-littering-etc-directory)
   :config
   (cl-letf (((symbol-function 'etc)
              (symbol-function #'no-littering-expand-etc-file-name))
@@ -376,7 +386,16 @@ order it was given."
 (defun my/indent-buffer ()
   "Indent current buffer according to major mode."
   (interactive)
-  (indent-region (point-min) (point-max)))
+  (save-excursion
+    (indent-region (point-min) (point-max))))
+
+(defun my/indent-region-or-buffer ()
+  "Indent selected region or the entire buffer."
+  (interactive)
+  (save-excursion
+    (if (region-active-p)
+        (indent-region (region-beginning) (region-end))
+      (indent-region (point-min) (point-max)))))
 
 (defun my/sort-sexps-in-region (beg end)
   "Can be handy for sorting out duplicates.
@@ -437,9 +456,9 @@ errors)."
 ;;;
 
 (bind-key [remap comment-dwim] #'my/comment-dwim-line)
-(bind-key "C-c n"   #'my/narrow-or-widen-dwim)
-(bind-key "C-x C-b" #'ibuffer)
-(bind-key "C-x C-r" #'revert-buffer)
+(bind-key "C-c n"              #'my/narrow-or-widen-dwim)
+(bind-key "C-x C-r"            #'revert-buffer)
+(bind-key "C-M-\\"             #'my/indent-region-or-buffer)
 
 ;;;
 ;;; Libraries
@@ -455,7 +474,6 @@ errors)."
 (use-package fullframe       :defer t)
 (use-package ghub            :defer t)
 (use-package ghub+           :defer t)
-(use-package gist            :defer t)
 (use-package ht              :defer t)
 (use-package loop            :defer t)
 (use-package marshal         :defer t)
@@ -626,6 +644,7 @@ different font size based on relative apperance."
 
 (use-package auto-compile
   :demand t
+  :defines auto-compile-display-buffer auto-comppile-mode-line-counter
   :init
   (setq auto-compile-display-buffer               nil
         auto-compile-mode-line-counter            t
@@ -724,8 +743,8 @@ Used as hook function for `kill-emacs-hook', because
   :config
   (global-company-mode)
   (setq company-tooltip-limit 20
-        company-idle-delay .3
-        company-echo-delay 0))
+        company-idle-delay   .3
+        company-echo-delay   0))
 
 (use-package company-jedi
   :if (not (eq system-type 'windows-nt))
@@ -873,13 +892,15 @@ Used as hook function for `kill-emacs-hook', because
 
 (use-package elint
   :after (emacs-lisp-mode)
-  :commands (elint-initialize elint-current-buffer)
-  :bind ("C-c e E" . my/elint-current-buffer)
+  :bind (("C-c e b" . my/elint-current-buffer)
+         ("C-c e f" . my/elint-defn))
   :preface
   (defun my/elint-current-buffer ()
+    "Lint the current Emacs Lisp buffer."
     (interactive)
-    (elint-initialize)
-    (elint-current-buffer))
+    (if (eq major-mode 'emacs-lisp-mode)
+        (save-excursion
+          (elint-current-buffer))))
   :config
   (add-to-list 'elint-standard-variables 'current-prefix-arg)
   (add-to-list 'elint-standard-variables 'command-line-args-left)
@@ -972,10 +993,10 @@ Lisp function does not specify a special indentation."
                  (looking-at ":")))
         (if (not (> (save-excursion (forward-line 1) (point))
                     calculate-lisp-indent-last-sexp))
-            (progn (goto-char calculate-lisp-indent-last-sexp)
-                   (beginning-of-line)
-                   (parse-partial-sexp (point)
-                                       calculate-lisp-indent-last-sexp 0 t)))
+            (progn
+              (goto-char calculate-lisp-indent-last-sexp)
+              (beginning-of-line)
+              (parse-partial-sexp (point) calculate-lisp-indent-last-sexp 0 t)))
         ;; Indent under the list or under the first sexp on the same
         ;; line as calculate-lisp-indent-last-sexp.  Note that first
         ;; thing on that line has to be complete sexp since we are
@@ -1021,9 +1042,33 @@ Lisp function does not specify a special indentation."
              :host github :repo "SavchenkoValeriy/emacs-powerthesaurus")
   :bind ("C-c C-t" . powerthesuarus-lookup-word))
 
+(use-package erefactor
+  :disabled
+  :after (emacs-lisp-mode elint)
+  :bind (:map emacs-lisp-mode-map
+         ("C-c C-v" . erefactor-map))
+  ;; C-c C-v l : elint current buffer in clean environment.
+  ;; C-c C-v L : elint current buffer by multiple emacs binaries.
+  ;;             See `erefactor-lint-emacsen'
+  ;; C-c C-v r : Rename symbol in current buffer.
+  ;;             Resolve `let' binding as long as i can.
+  ;; C-c C-v R : Rename symbol in requiring modules and current buffer.
+  ;; C-c C-v h : Highlight current symbol in this buffer
+  ;;             and suppress `erefacthr-highlight-mode'.
+  ;; C-c C-v d : Dehighlight all by above command.
+  ;; C-c C-v c : Switch prefix bunch of symbols.
+  ;;             ex: '(hoge-var hoge-func) -> '(foo-var foo-func)
+  )
+
+(use-package ert
+  :bind ("C-c e t" . ert-run-tests-interactively))
+
 (use-package esup
   :init
   (advice-add 'esup :around #'my/wrap-in-straight-transaction))
+
+(use-package etags
+  :bind ("M-T" . tags-search))
 
 (use-package exec-path-from-shell
   :if (eq system-type 'darwin)		; only needed on MacOS
@@ -1049,7 +1094,6 @@ Lisp function does not specify a special indentation."
   :bind ("C-=" . er/expand-region))
 
 (use-package ffap
-  :defer t
   :bind ("C-c v" . ffap))
 
 (use-package fill-column-indicator
@@ -1189,6 +1233,24 @@ _q_ quit           _<_ previous
       ("<" flymake-goto-previous-error)
       (">" flymake-goto-next-error)))
   :hook (find-file . flymake-find-file-hook))
+
+(use-package gist
+  :defer t
+  :ensure-system-package gist
+  :bind ("C-c G" . my/gist-region-or-buffer)
+  :preface
+  (defun my/gist-region-or-buffer (start end)
+    "Create a Github Gist from the current region or buffer."
+    (interactive "r")
+    (copy-region-as-kill start end)
+    (deactivate-mark)
+    (let ((file-name buffer-file-name))
+      (with-temp-buffer
+        (if file-name
+            (call-process "gist" nil t nil "-f" file-name "-P")
+          (call-process "gist" nil t nil "-P"))
+        (kill-ring-save (point-min) (1- (point-max)))
+        (message (buffer-substring (point-min) (1- (point-max))))))))
 
 (use-package git-commit
   :commands global-git-commit-mode
@@ -1549,10 +1611,32 @@ initialization, it can loop until OS handles are exhausted."
   :mode "\\.json\\'")
 
 (use-package json-reformat
-  :after (json-mode))
+  :after (json-mode)
+  :preface
+  (defun my/reformat-buffer-or-region-as-json (&optional arg)
+    "Reformat the current region or buffer as JSON.
+
+ With prefix argument, set the buffer as unmodified, and read-only
+only if the buffer was not modified prior to reformatting."
+    (interactive "P")
+    (let ((modified (buffer-modified-p)))
+      (save-excursion
+        (if region-active-p
+            (json-reformat (region-beginning) (region-end))
+          (json-reformat (point-min) (point-max)))
+        (when (and (not modified) arg)
+          (set-buffer-modified-p nil)
+          (read-only-mode +1)))))
+  :init
+  (setq json-refotmat:indent-width 2
+        json-reformat:pretty-string? t))
 
 (use-package json-snatcher
-  :after (json-mode))
+  :after (json-mode)
+  :bind (:map js-mode-map
+         ("C-c C-g" . json-print-path)
+         :map js2-mode-map
+         ("C-c C-g" . json-print-path)))
 
 (use-package lisp-mode
   :straight f
@@ -2416,6 +2500,7 @@ foo -> &foo[..]"
 
 (use-package whitespace
   :defer t
+  :defines whitespace-line-column whitespace-style
   :init
   (setq whitespace-line-column 80)
   (setq whitespace-style '(face tabs empty trailing))
