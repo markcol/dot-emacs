@@ -808,6 +808,21 @@ Used as hook function for `kill-emacs-hook', because
 (use-package csv-mode
   :mode "\\.csv\\'")
 
+(use-package dap-mode
+  :disabled
+  :straight (dap-mode
+             :host github :repo "yyoncho/dap-mode")
+  :preface
+  (defun my/disable-dap-mode ()
+    "Disable dap-mode (Debug Adapter Protocol)."
+    (dap-mode nil)
+    (dap-ui-mode nil))
+  (defun my/enable-dap-mode ()
+    "Enable dap-mode (Debug Adapter Protocol)."
+    (dap-mode 1)
+    (dap-ui-mode 1))
+  :hook (prog-mode . my/enable-dap-mode))
+
 (use-package dash
   :defer t
   :config
