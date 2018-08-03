@@ -1616,10 +1616,6 @@ initialization, it can loop until OS handles are exhausted."
 
 (use-package js2-mode
   :mode "\\.js\\'"
-  :bind (:map js2-mode-map
-         ("," . self-with-space)
-         ("=" . pad-equals)
-         (":" . self-with-space))
   :interpreter ("node" . js2-mode)
   :init
   (setq js2-mode-show-strict-warnings nil
@@ -1657,7 +1653,7 @@ only if the buffer was not modified prior to reformatting."
         json-reformat:pretty-string? t))
 
 (use-package json-snatcher
-  :after (json-mode)
+  :after (js-mode js2-mode json-mode)
   :bind (:map js-mode-map
          ("C-c C-g" . json-print-path)
          :map js2-mode-map
