@@ -581,8 +581,8 @@ different font size based on relative apperance."
   (when (display-graphic-p)
     ;; Size frame based on the screen resolution
     (let ((frame  (or (car frame) (selected-frame)))
-          (ptsize (if (>= (display-pixel-height) 2000) 10 12))
-          (height (if (>= (display-pixel-height) 2000) 160 100)))
+          (ptsize (if (>= (display-pixel-height) 1800) 15 12))
+          (height (if (>= (display-pixel-height) 1800) 150 120)))
       (set-face-attribute 'default nil :height (* ptsize 10))
       (set-frame-position frame 0 0)
       (set-frame-font (my/font-spec ptsize) nil t)
@@ -837,7 +837,8 @@ Used as hook function for `kill-emacs-hook', because
 
 (use-package dash-at-point
   :if (eq system-type 'darwin)
-  :ensure-system-package dash)
+  :ensure-system-package
+  ("/Applications/Dash.app" . "brew cask install dash"))
 
 (use-package dired
   :straight f
